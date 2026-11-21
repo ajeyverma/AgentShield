@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  # ---------------------------------------------------------------------------
+  # AgentShield Backend API
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: agentshield-api:latest
+    container_name: agentshield-api
+    restart: unless-stopped
+    ports:
+      - "${AGENTSHIELD_PORT:-8000}:8000"
+    environment:
+      AGENTSHIELD_ENV: ${AGENTSHIELD_ENV:-local}
+      AGENTSHIELD_DATABASE_URL: postgresql+asyncpg://agentshield:${POSTGRES_PASSWORD:-changeme}@db:5432/agentshield
+      AGENTSHIELD_SECRET_KEY: ${AGENTSHIELD_SECRET_KEY:-CHANGE_ME_in_production}
+      AGENTSHIELD_LOG_LEVEL: ${AGENTSHIELD_LOG_LEVEL:-INFO}
+      AGENTSHIELD_LOG_FORMAT: ${AGENTSHIELD_LOG_FORMAT:-json}
+      AGENTSHIELD_CORS_ORIGINS: ${AGENTSHIELD_CORS_ORIGINS:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - agentshield
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: agentshield-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agentshield
+      POSTGRES_USER: agentshield
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentshield -d agentshield"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - agentshield
+
+volumes:
+  postgres_data:
+
+networks:
+  agentshield:
+    driver: bridge

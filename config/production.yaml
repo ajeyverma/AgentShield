@@ -1,0 +1,27 @@
+# AgentShield AI — Production Configuration Reference
+# Values here are reference documentation only.
+# All secrets and credentials MUST come from environment variables or a secrets manager.
+# Never put real passwords, keys, or tokens in this file.
+
+environment: remote
+
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  api_prefix: "/api/v1"
+
+database:
+  # Set AGENTSHIELD_DATABASE_URL in the environment / secrets manager.
+  # Format: postgresql+asyncpg://user:PASSWORD@host:5432/agentshield
+  pool_size: 10
+  max_overflow: 20
+
+logging:
+  level: INFO
+  format: json
+
+security:
+  # AGENTSHIELD_SECRET_KEY must be set in the environment.
+  # Generate: python -c "import secrets; print(secrets.token_urlsafe(64))"
+  access_token_expire_minutes: 60

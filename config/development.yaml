@@ -1,0 +1,24 @@
+# AgentShield AI — Development Configuration
+# Used for local development (AGENTSHIELD_ENV=local)
+# Values here serve as documentation defaults. Actual values come from .env.
+
+environment: local
+
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
+  api_prefix: "/api/v1"
+
+database:
+  # SQLite is used automatically when DATABASE_URL is not set in .env
+  sqlite_url: "sqlite+aiosqlite:///./agentshield_dev.db"
+
+logging:
+  level: DEBUG
+  format: console
+
+cors:
+  origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"

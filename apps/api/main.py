@@ -1,14 +1,8 @@
 """
 AgentShield AI — FastAPI Backend Application.
 
-Entry point for the AgentShield security backend.  This module creates and
-configures the FastAPI application instance.
-
-The backend operates independently of the desktop application.  Closing or
-restarting the desktop UI does not affect the backend process.
-
-Start the server:
-    uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
+Entry point for the AgentShield security backend.
+Operates independently of the desktop application.
 """
 
 from __future__ import annotations
@@ -22,7 +16,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agentshield.core.config import settings
 from agentshield.core.logging import configure_logging
-from apps.api.routes import health
+from agentshield.database.session import initialize_database
+from apps.api.routes import (
+    activity,
+    agents,
+    approvals,
+    audit_logs,
+    auth,
+    dashboard,
+    health,
+    integrations,
+    policies,
+    threats,
+    users,
+    websocket,
+)
 
 # Configure logging before anything else
 configure_logging(level=settings.log_level, fmt=settings.log_format)
@@ -47,8 +55,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
-    # Phase 2+: Initialize database, start background tasks, etc.
-    # For Phase 1, the backend starts with no persistent state dependencies.
+    # Initialize database tables if they do not yet exist
+    try:
+        await initialize_database()
+    except Exception as exc:
+        logger.error("Failed to initialize database on startup: %s", exc)
 
     yield  # Application is running
 
@@ -66,8 +77,7 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         description=(
             "AgentShield AI — Universal Runtime Security Gateway for AI Agents. "
-            "Provides security evaluation, policy enforcement, and audit logging "
-            "for AI agent tool interactions."
+            "Provides identity, security monitoring, policy management, and audit logging."
         ),
         version=settings.app_version,
         docs_url=f"{settings.api_prefix}/docs",
@@ -91,13 +101,17 @@ def create_app() -> FastAPI:
     # Routers
     # ------------------------------------------------------------------
     app.include_router(health.router, prefix=settings.api_prefix)
-
-    # Phase 2+ routers will be added here:
-    # app.include_router(auth.router, prefix=settings.api_prefix)
-    # app.include_router(agents.router, prefix=settings.api_prefix)
-    # app.include_router(evaluate.router, prefix=settings.api_prefix)
-    # app.include_router(approvals.router, prefix=settings.api_prefix)
-    # app.include_router(audit.router, prefix=settings.api_prefix)
+    app.include_router(auth.router, prefix=settings.api_prefix)
+    app.include_router(users.router, prefix=settings.api_prefix)
+    app.include_router(agents.router, prefix=settings.api_prefix)
+    app.include_router(dashboard.router, prefix=settings.api_prefix)
+    app.include_router(activity.router, prefix=settings.api_prefix)
+    app.include_router(threats.router, prefix=settings.api_prefix)
+    app.include_router(approvals.router, prefix=settings.api_prefix)
+    app.include_router(policies.router, prefix=settings.api_prefix)
+    app.include_router(audit_logs.router, prefix=settings.api_prefix)
+    app.include_router(integrations.router, prefix=settings.api_prefix)
+    app.include_router(websocket.router, prefix=settings.api_prefix)
 
     return app
 

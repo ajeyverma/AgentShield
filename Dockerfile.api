@@ -33,6 +33,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY agentshield/ ./agentshield/
 COPY apps/api/ ./apps/api/
 COPY apps/__init__.py ./apps/__init__.py
+COPY alembic/ ./alembic/
+COPY alembic.ini ./alembic.ini
 
 # Ensure non-root ownership
 RUN chown -R agentshield:agentshield /app

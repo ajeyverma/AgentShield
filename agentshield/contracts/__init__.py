@@ -11,6 +11,11 @@ from agentshield.contracts.enums import (
     RiskLevel,
     ToolCategory,
 )
+from agentshield.contracts.events import (
+    EventComponent,
+    EventSeverity,
+    SecurityEvent,
+)
 from agentshield.contracts.execution import (
     ExecutionApprovalRequest,
     ExecutionAuthorizationGrant,

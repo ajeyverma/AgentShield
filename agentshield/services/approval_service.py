@@ -17,9 +17,11 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agentshield.contracts.events import EventComponent, EventSeverity
 from agentshield.core.exceptions import ApprovalNotFoundError, AuthorizationError, ValidationError
 from agentshield.database.models.approval import ApprovalHistory, ApprovalRequest
 from agentshield.execution.exceptions import ApprovalVerificationError
+from agentshield.observability.event_publisher import event_publisher
 from agentshield.realtime.event_broadcaster import broadcaster
 from agentshield.security.rbac import (
     UserRole,
@@ -35,6 +37,7 @@ from agentshield.services.schemas import (
     ApprovalUpdate,
     PaginatedResponse,
 )
+from agentshield.services.tamper_evident_audit import TamperEvidentAuditService
 
 logger = logging.getLogger("agentshield.services.approval")
 
@@ -249,6 +252,38 @@ class ApprovalService:
             },
         )
 
+        # 10. Record tamper-evident audit & publish security event
+        audit_svc = TamperEvidentAuditService(self.session)
+        await audit_svc.record_audit_entry(
+            tenant_id=user_id,
+            actor_id=user_id,
+            actor_role=str(user_role),
+            action="approval.granted",
+            target=f"approval:{approval.id}",
+            target_type="approval",
+            result="SUCCESS",
+            details={
+                "approval_id": approval.id,
+                "execution_id": approval.execution_id,
+                "tool_name": approval.tool_name,
+                "operation": approval.operation,
+                "comment": comment,
+            },
+        )
+        await event_publisher.publish(
+            session=self.session,
+            event_type="approval.granted",
+            severity=EventSeverity.INFO,
+            component=EventComponent.APPROVAL,
+            tenant_id=user_id,
+            agent_id=approval.agent_id,
+            tool_name=approval.tool_name,
+            action=approval.operation,
+            decision="ALLOW",
+            status="approved",
+            details={"approval_id": approval.id, "reviewed_by": user_id, "reviewer_role": str(user_role)},
+        )
+
         logger.info(
             "Approval '%s' GRANTED by user '%s' (%s) for tool '%s'",
             approval_id,
@@ -332,6 +367,37 @@ class ApprovalService:
             },
         )
 
+        audit_svc = TamperEvidentAuditService(self.session)
+        await audit_svc.record_audit_entry(
+            tenant_id=user_id,
+            actor_id=user_id,
+            actor_role=str(user_role),
+            action="approval.rejected",
+            target=f"approval:{approval.id}",
+            target_type="approval",
+            result="SUCCESS",
+            details={
+                "approval_id": approval.id,
+                "execution_id": approval.execution_id,
+                "tool_name": approval.tool_name,
+                "operation": approval.operation,
+                "reason": rejection_reason.strip(),
+            },
+        )
+        await event_publisher.publish(
+            session=self.session,
+            event_type="approval.rejected",
+            severity=EventSeverity.WARNING,
+            component=EventComponent.APPROVAL,
+            tenant_id=user_id,
+            agent_id=approval.agent_id,
+            tool_name=approval.tool_name,
+            action=approval.operation,
+            decision="BLOCK",
+            status="rejected",
+            details={"approval_id": approval.id, "rejected_by": user_id, "reviewer_role": str(user_role), "reason": rejection_reason.strip()},
+        )
+
         logger.info("Approval '%s' REJECTED by user '%s': %s", approval_id, user_id, rejection_reason)
         return ApprovalResponse.model_validate(approval)
 
@@ -398,6 +464,34 @@ class ApprovalService:
                 "cancelled_by": user_id,
                 "reason": reason or "Cancelled by user.",
             },
+        )
+
+        audit_svc = TamperEvidentAuditService(self.session)
+        await audit_svc.record_audit_entry(
+            tenant_id=user_id,
+            actor_id=user_id,
+            actor_role=str(user_role),
+            action="approval.cancelled",
+            target=f"approval:{approval.id}",
+            target_type="approval",
+            result="SUCCESS",
+            details={
+                "approval_id": approval.id,
+                "execution_id": approval.execution_id,
+                "reason": reason or "Cancelled by user.",
+            },
+        )
+        await event_publisher.publish(
+            session=self.session,
+            event_type="approval.cancelled",
+            severity=EventSeverity.INFO,
+            component=EventComponent.APPROVAL,
+            tenant_id=user_id,
+            agent_id=approval.agent_id,
+            tool_name=approval.tool_name,
+            action=approval.operation,
+            status="cancelled",
+            details={"approval_id": approval.id, "cancelled_by": user_id},
         )
         return ApprovalResponse.model_validate(approval)
 

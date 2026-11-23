@@ -836,6 +836,153 @@ class BackendClient:
             url += f"?token={self.token}"
         return url
 
+    # ── Phase 11: Monitoring, Alerts, Incidents & Tamper-Evident Audit ────────
+
+    def get_security_events(
+        self,
+        page: int = 1,
+        size: int = 50,
+        event_type: str | None = None,
+        severity: str | None = None,
+        component: str | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Fetch paginated security events."""
+        try:
+            params: dict[str, Any] = {"page": page, "size": size}
+            if event_type:
+                params["event_type"] = event_type
+            if severity:
+                params["severity"] = severity
+            if component:
+                params["component"] = component
+            if agent_id:
+                params["agent_id"] = agent_id
+
+            resp = self._client.get(
+                f"{self.api_prefix}/events",
+                headers=self._headers(),
+                params=params,
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to fetch security events: %s", exc)
+            return None
+
+    def get_alerts(self, status: str | None = None, severity: str | None = None) -> list[dict[str, Any]] | None:
+        """Fetch active or historical security alerts."""
+        try:
+            params = {}
+            if status:
+                params["status"] = status
+            if severity:
+                params["severity"] = severity
+            resp = self._client.get(
+                f"{self.api_prefix}/alerts",
+                headers=self._headers(),
+                params=params,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("items", []) if isinstance(data, dict) else data
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch alerts: %s", exc)
+            return None
+
+    def update_alert_status(self, alert_id: str, new_status: str) -> dict[str, Any] | None:
+        """Update alert status (active/acknowledged/resolved/suppressed)."""
+        try:
+            resp = self._client.patch(
+                f"{self.api_prefix}/alerts/{alert_id}/status",
+                headers=self._headers(),
+                json={"status": new_status},
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to update alert %s: %s", alert_id, exc)
+            return None
+
+    def list_incidents(self, status: str | None = None) -> list[dict[str, Any]] | None:
+        """List security incidents."""
+        try:
+            params = {}
+            if status:
+                params["status"] = status
+            resp = self._client.get(
+                f"{self.api_prefix}/incidents",
+                headers=self._headers(),
+                params=params,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("items", []) if isinstance(data, dict) else data
+            return None
+        except Exception as exc:
+            logger.warning("Failed to list incidents: %s", exc)
+            return None
+
+    def create_incident(self, title: str, description: str, severity: str = "MEDIUM", alert_id: str | None = None) -> dict[str, Any] | None:
+        """Open a new security incident."""
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/incidents",
+                headers=self._headers(),
+                json={"title": title, "description": description, "severity": severity, "alert_id": alert_id},
+            )
+            return resp.json() if resp.status_code == 201 else None
+        except Exception as exc:
+            logger.warning("Failed to create incident: %s", exc)
+            return None
+
+    def get_metrics_summary(self) -> dict[str, Any] | None:
+        """Fetch aggregated metrics counters, gauges, and latency percentiles."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/metrics/summary",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get metrics summary: %s", exc)
+            return None
+
+    def get_system_health(self) -> dict[str, Any] | None:
+        """Fetch system health and cryptographic audit chain validity."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/metrics/health",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get system health: %s", exc)
+            return None
+
+    def verify_audit_chain(self) -> dict[str, Any] | None:
+        """Cryptographically verify the tamper-evident hash chain."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/audit-logs/verify",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to verify audit chain: %s", exc)
+            return None
+
+    def export_audit_trail(self) -> dict[str, Any] | None:
+        """Export verifiable audit trail."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/audit-logs/export",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to export audit trail: %s", exc)
+            return None
+
 
 # Module-level default instance
 backend_client = BackendClient()

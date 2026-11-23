@@ -10,6 +10,7 @@ from apps.desktop.components.stat_card    import StatCard
 from apps.desktop.components.status_badge import DecisionBadge, RiskBadge, StatusBadge
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.mini_chart   import BarChartWidget, DonutChartWidget
+from apps.desktop.services.backend_client import backend_client
 from apps.desktop.services.demo_data      import ACTIVITY, THREATS, get_dashboard_stats
 
 
@@ -32,11 +33,25 @@ def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
 
 
 class DashboardView(QWidget):
-    """Main dashboard — demo data only. ⚠ Not real security monitoring."""
+    """Main dashboard — unified security overview."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._stats = get_dashboard_stats()
+        # Fetch live metrics if backend connected
+        try:
+            live = backend_client.get_metrics_summary()
+            if live and "counters" in live:
+                c = live["counters"]
+                g = live.get("gauges", {})
+                if "security.requests.total" in c:
+                    self._stats["actions_today"] = c["security.requests.total"]
+                if "security.decisions.BLOCK" in c:
+                    self._stats["blocked_today"] = c["security.decisions.BLOCK"]
+                if "security.alerts.active" in g:
+                    self._stats["pending_approvals"] = int(g["security.alerts.active"])
+        except Exception:
+            pass
         self._build()
 
     def _build(self):

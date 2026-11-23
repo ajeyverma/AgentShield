@@ -1,5 +1,5 @@
 """
-AgentShield AI — Audit Logs Routes.
+AgentShield AI — Audit Logs Routes (Enhanced Phase 11).
 """
 
 from __future__ import annotations
@@ -8,7 +8,16 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from apps.api.dependencies import CurrentUser, DbSession
 from agentshield.services.audit_service import AuditService
-from agentshield.services.schemas import AuditLogCreate, AuditLogResponse, PaginatedResponse
+from agentshield.services.schemas import (
+    AuditCheckpointCreate,
+    AuditCheckpointResponse,
+    AuditExportResponse,
+    AuditLogCreate,
+    AuditLogResponse,
+    AuditVerifyResponse,
+    PaginatedResponse,
+)
+from agentshield.services.tamper_evident_audit import TamperEvidentAuditService
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 
@@ -24,6 +33,38 @@ async def list_audit_logs(
     """Retrieve immutable audit log records for the authenticated user."""
     service = AuditService(db)
     return await service.list_audit_logs(user.id, page=page, size=size, event_type=event_type)
+
+
+@router.get("/verify", response_model=AuditVerifyResponse)
+async def verify_audit_chain(
+    user: CurrentUser,
+    db: DbSession,
+) -> AuditVerifyResponse:
+    """Verify cryptographic hash chain integrity for the authenticated tenant."""
+    service = TamperEvidentAuditService(db)
+    return await service.verify_chain(tenant_id=user.id)
+
+
+@router.get("/export", response_model=AuditExportResponse)
+async def export_audit_trail(
+    user: CurrentUser,
+    db: DbSession,
+) -> AuditExportResponse:
+    """Export complete verifiable audit trail for compliance verification."""
+    service = TamperEvidentAuditService(db)
+    return await service.export_audit_trail(tenant_id=user.id)
+
+
+@router.post("/checkpoint", response_model=AuditCheckpointResponse, status_code=status.HTTP_201_CREATED)
+async def create_checkpoint(
+    payload: AuditCheckpointCreate,
+    user: CurrentUser,
+    db: DbSession,
+) -> AuditCheckpointResponse:
+    """Generate a tamper-evident audit checkpoint anchoring verified log state."""
+    service = TamperEvidentAuditService(db)
+    checkpoint = await service.create_checkpoint(tenant_id=user.id, notes=payload.notes)
+    return AuditCheckpointResponse.model_validate(checkpoint)
 
 
 @router.get("/{log_id}", response_model=AuditLogResponse)

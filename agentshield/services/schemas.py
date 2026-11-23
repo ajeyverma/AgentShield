@@ -466,3 +466,190 @@ class IntegrationResponse(BaseModel):
     configuration_metadata: str | None
     created_at: datetime
     updated_at: datetime
+
+
+# ─── Phase 11: Monitoring, Auditing & Observability Schemas ───────────────
+
+
+class SecurityEventResponse(BaseModel):
+    """Schema representing a standardized security event."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    event_type: str
+    severity: str
+    component: str
+    tenant_id: str | None = None
+    agent_id: str | None = None
+    tool_name: str | None = None
+    action: str | None = None
+    decision: str | None = None
+    status: str | None = None
+    trace_id: str | None = None
+    span_id: str | None = None
+    correlation_id: str | None = None
+    latency_ms: float | None = None
+    details_json: str | None = None
+    created_at: datetime
+
+
+class AlertResponse(BaseModel):
+    """Schema representing an active or resolved security alert."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    rule_name: str
+    title: str
+    description: str
+    severity: str
+    status: str
+    tenant_id: str | None = None
+    agent_id: str | None = None
+    trigger_count: int = 1
+    evidence_json: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AlertUpdateStatus(BaseModel):
+    """Request payload to update an alert status."""
+
+    status: str = Field(pattern="^(active|acknowledged|resolved|suppressed)$")
+
+
+class IncidentCreate(BaseModel):
+    """Payload to create a security incident."""
+
+    title: str = Field(min_length=3, max_length=256)
+    description: str = Field(min_length=3)
+    severity: str = Field(default="MEDIUM", pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$")
+    agent_id: str | None = None
+    alert_id: str | None = None
+
+
+class IncidentUpdateStatus(BaseModel):
+    """Payload to transition incident status."""
+
+    status: str = Field(pattern="^(OPEN|ACKNOWLEDGED|INVESTIGATING|RESOLVED|CLOSED)$")
+    reason: str | None = None
+
+
+class IncidentNoteCreate(BaseModel):
+    """Payload to add a note to an incident."""
+
+    note: str = Field(min_length=1)
+
+
+class IncidentNoteResponse(BaseModel):
+    """Incident note representation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    incident_id: str
+    author_id: str
+    note: str
+    created_at: datetime
+
+
+class IncidentHistoryResponse(BaseModel):
+    """Incident status change audit entry."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    incident_id: str
+    old_status: str
+    new_status: str
+    changed_by: str
+    reason: str | None = None
+    created_at: datetime
+
+
+class IncidentResponse(BaseModel):
+    """Incident summary representation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    tenant_id: str
+    title: str
+    description: str
+    severity: str
+    status: str
+    agent_id: str | None = None
+    alert_id: str | None = None
+    assigned_to: str | None = None
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+    resolved_at: datetime | None = None
+    closed_at: datetime | None = None
+
+
+class IncidentDetailResponse(IncidentResponse):
+    """Detailed incident response including attached notes and transition history."""
+
+    notes: list[IncidentNoteResponse] = []
+    history: list[IncidentHistoryResponse] = []
+
+
+class AuditVerifyResponse(BaseModel):
+    """Cryptographic audit chain verification result."""
+
+    is_valid: bool
+    verified_count: int
+    broken_index: int | None = None
+    expected_hash: str | None = None
+    actual_hash: str | None = None
+    message: str
+    last_verified_at: datetime
+
+
+class AuditCheckpointCreate(BaseModel):
+    """Request payload to create a new cryptographic audit checkpoint."""
+
+    notes: str | None = None
+
+
+class AuditCheckpointResponse(BaseModel):
+    """Audit checkpoint response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    checkpoint_hash: str
+    sequence_number: int
+    entry_count: int
+    created_at: datetime
+
+
+class AuditExportResponse(BaseModel):
+    """Export of verifiable audit trail."""
+
+    entries_count: int
+    head_hash: str | None = None
+    is_valid: bool
+    export_timestamp: datetime
+    entries: list[dict[str, Any]]
+
+
+class MetricsSummaryResponse(BaseModel):
+    """Aggregated security and operational metrics."""
+
+    counters: dict[str, int]
+    gauges: dict[str, float]
+    latency_percentiles: dict[str, dict[str, float]]
+    collected_at: datetime
+
+
+class SystemHealthResponse(BaseModel):
+    """High-level system health and integrity response."""
+
+    status: str
+    database_connected: bool
+    version: str
+    audit_chain_valid: bool
+    metrics_summary: dict[str, Any]

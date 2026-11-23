@@ -15,6 +15,10 @@ from agentshield.database.models.policy import Policy, PolicyVersion
 from agentshield.database.models.security_decision import SecurityDecisionModel
 from agentshield.database.models.threat import ThreatEvent
 from agentshield.database.models.threat_finding import ThreatFindingModel
+from agentshield.database.models.alert import SecurityAlertModel
+from agentshield.database.models.audit_checkpoint import AuditCheckpointModel
+from agentshield.database.models.incident import IncidentHistoryModel, IncidentModel, IncidentNoteModel
+from agentshield.database.models.security_event import SecurityEventModel
 from agentshield.database.models.user import User
 
 __all__ = [
@@ -31,9 +35,15 @@ __all__ = [
     "EmergencyControlModel",
     "SecurityDecisionModel",
     "AuditLog",
+    "AuditCheckpointModel",
     "Integration",
     "ToolExecutionModel",
     "MCPServerModel",
     "MCPSessionModel",
     "MCPActivityModel",
+    "SecurityEventModel",
+    "SecurityAlertModel",
+    "IncidentModel",
+    "IncidentNoteModel",
+    "IncidentHistoryModel",
 ]

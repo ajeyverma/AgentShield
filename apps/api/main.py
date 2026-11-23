@@ -20,15 +20,19 @@ from agentshield.database.session import initialize_database
 from apps.api.routes import (
     activity,
     agents,
+    alerts,
     approvals,
     audit_logs,
     auth,
     dashboard,
     emergency,
+    events,
     executions,
     health,
+    incidents,
     integrations,
     mcp,
+    metrics,
     policies,
     security,
     threat_detection,
@@ -123,6 +127,10 @@ def create_app() -> FastAPI:
     app.include_router(audit_logs.router, prefix=settings.api_prefix)
     app.include_router(integrations.router, prefix=settings.api_prefix)
     app.include_router(mcp.router, prefix=settings.api_prefix)
+    app.include_router(events.router, prefix=settings.api_prefix)
+    app.include_router(alerts.router, prefix=settings.api_prefix)
+    app.include_router(incidents.router, prefix=settings.api_prefix)
+    app.include_router(metrics.router, prefix=settings.api_prefix)
     app.include_router(websocket.router, prefix=settings.api_prefix)
 
     return app

@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agentshield.contracts.events import EventComponent, EventSeverity
 from agentshield.database.models.mcp import MCPActivityModel, MCPServerModel
 from agentshield.mcp_gateway.client import MCPUpstreamClient
 from agentshield.mcp_gateway.configuration import MCPGatewayConfig, default_mcp_gateway_config
@@ -39,6 +40,7 @@ from agentshield.mcp_gateway.protocol.validation import SUPPORTED_METHODS, valid
 from agentshield.mcp_gateway.registry.server_registry import MCPServerRegistry
 from agentshield.mcp_gateway.registry.tool_registry import MCPToolRegistry
 from agentshield.mcp_gateway.security.authorization import MCPAuthorizationService
+from agentshield.observability.event_publisher import event_publisher
 
 logger = logging.getLogger("agentshield.mcp_gateway.proxy")
 
@@ -309,6 +311,20 @@ class MCPFirewallGateway:
             )
             session.add(activity)
             await session.commit()
+            await event_publisher.publish(
+                session=session,
+                event_type="mcp.blocked",
+                severity=EventSeverity.HIGH,
+                component=EventComponent.MCP_GATEWAY,
+                tenant_id=user_id,
+                agent_id=agent_id,
+                tool_name=target_name,
+                action=method,
+                decision="BLOCK",
+                status="BLOCKED",
+                latency_ms=duration,
+                details={"reason": e.message, "server_id": server.id, "error_code": e.rpc_error_code},
+            )
             return make_jsonrpc_error(req_id, e.rpc_error_code, e.message, data=e.details)
 
         except MCPApprovalRequiredError as e:
@@ -332,6 +348,20 @@ class MCPFirewallGateway:
             )
             session.add(activity)
             await session.commit()
+            await event_publisher.publish(
+                session=session,
+                event_type="mcp.approval_required",
+                severity=EventSeverity.MEDIUM,
+                component=EventComponent.MCP_GATEWAY,
+                tenant_id=user_id,
+                agent_id=agent_id,
+                tool_name=target_name,
+                action=method,
+                decision="ASK_HUMAN",
+                status="PENDING_APPROVAL",
+                latency_ms=duration,
+                details={"approval_id": e.approval_id, "server_id": server.id},
+            )
             return make_jsonrpc_error(req_id, e.rpc_error_code, e.message, data=e.details)
 
         # Operation is AUTHORIZED (Decision.ALLOW) -> Forward to upstream external server
@@ -385,6 +415,20 @@ class MCPFirewallGateway:
         )
         session.add(activity)
         await session.commit()
+        await event_publisher.publish(
+            session=session,
+            event_type="mcp.executed",
+            severity=EventSeverity.INFO,
+            component=EventComponent.MCP_GATEWAY,
+            tenant_id=user_id,
+            agent_id=agent_id,
+            tool_name=target_name,
+            action=method,
+            decision="ALLOW",
+            status="SUCCESS",
+            latency_ms=duration,
+            details={"server_id": server.id, "redacted": was_redacted},
+        )
 
         sanitized_resp["id"] = req_id
         return sanitized_resp

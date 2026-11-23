@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentshield.contracts.enums import Decision, IntegrationType, ToolCategory
+from agentshield.contracts.events import EventComponent, EventSeverity
 from agentshield.contracts.execution import (
     ExecutionRequest,
     ToolExecutionResponse,
@@ -38,6 +39,8 @@ from agentshield.execution.exceptions import (
     IdempotencyConflictError,
 )
 from agentshield.execution.registry import tool_registry
+from agentshield.observability.event_publisher import event_publisher
+from agentshield.observability.tracing import trace_span
 from agentshield.realtime.event_broadcaster import broadcaster
 from agentshield.security.engine import security_engine
 from agentshield.services.schemas import PaginatedResponse
@@ -75,54 +78,68 @@ class ExecutionService:
         request: ExecutionRequest,
     ) -> ToolExecutionResponse:
         """Process an execution request through validation, threats, security evaluation, and adapter."""
-        # 1. Idempotency check
-        existing = await self.check_idempotency(user_id, request.idempotency_key, request.canonical_argument_hash)
-        if existing:
-            return self._model_to_response(existing)
+        with trace_span("gateway.execute_request", resource=f"{request.tool_name}:{request.action_name}"):
+            # 1. Idempotency check
+            existing = await self.check_idempotency(user_id, request.idempotency_key, request.canonical_argument_hash)
+            if existing:
+                return self._model_to_response(existing)
 
-        # 2. Registry validation
-        tool_def = tool_registry.validate_request(
-            tool_name=request.tool_name,
-            action_name=request.action_name,
-            arguments=request.arguments,
-        )
+            # 2. Registry validation
+            tool_def = tool_registry.validate_request(
+                tool_name=request.tool_name,
+                action_name=request.action_name,
+                arguments=request.arguments,
+            )
 
-        # 2.5 Emergency Controls Check (Phase 10)
-        from agentshield.services.emergency_service import EmergencyControlService
-        emergency_svc = EmergencyControlService(self.session)
-        is_emg_blocked, emg_reason = await emergency_svc.check_is_blocked(
-            user_id=user_id,
-            agent_id=agent.id,
-            tool_name=request.tool_name,
-            integration_type=getattr(request, "integration_type", "api") or "api",
-        )
-        if is_emg_blocked:
-            exec_id = str(uuid.uuid4())
-            model = ToolExecutionModel(
-                id=exec_id,
-                request_id=str(request.request_id),
+            # 2.5 Emergency Controls Check (Phase 10)
+            from agentshield.services.emergency_service import EmergencyControlService
+            emergency_svc = EmergencyControlService(self.session)
+            is_emg_blocked, emg_reason = await emergency_svc.check_is_blocked(
                 user_id=user_id,
                 agent_id=agent.id,
                 tool_name=request.tool_name,
-                action_name=request.action_name,
-                canonical_argument_hash=request.canonical_argument_hash,
-                arguments_json=json.dumps(request.arguments) if request.arguments is not None else None,
-                idempotency_key=request.idempotency_key,
-                decision="BLOCK",
-                status=ExecutionStatus.BLOCKED.value,
-                error_code="EMERGENCY_LOCKDOWN",
-                error_message=emg_reason,
-                started_at=datetime.now(UTC),
-                completed_at=datetime.now(UTC),
+                integration_type=getattr(request, "integration_type", "api") or "api",
             )
-            self.session.add(model)
-            await self.session.commit()
-            await broadcaster.broadcast_event(
-                user_id,
-                "execution.blocked",
-                {"execution_id": model.id, "tool_name": request.tool_name, "action_name": request.action_name, "reason": emg_reason},
-            )
-            return self._model_to_response(model)
+            if is_emg_blocked:
+                exec_id = str(uuid.uuid4())
+                model = ToolExecutionModel(
+                    id=exec_id,
+                    request_id=str(request.request_id),
+                    user_id=user_id,
+                    agent_id=agent.id,
+                    tool_name=request.tool_name,
+                    action_name=request.action_name,
+                    canonical_argument_hash=request.canonical_argument_hash,
+                    arguments_json=json.dumps(request.arguments) if request.arguments is not None else None,
+                    idempotency_key=request.idempotency_key,
+                    decision="BLOCK",
+                    status=ExecutionStatus.BLOCKED.value,
+                    error_code="EMERGENCY_LOCKDOWN",
+                    error_message=emg_reason,
+                    started_at=datetime.now(UTC),
+                    completed_at=datetime.now(UTC),
+                )
+                self.session.add(model)
+                await self.session.commit()
+                await broadcaster.broadcast_event(
+                    user_id,
+                    "execution.blocked",
+                    {"execution_id": model.id, "tool_name": request.tool_name, "action_name": request.action_name, "reason": emg_reason},
+                )
+                await event_publisher.publish(
+                    session=self.session,
+                    event_type="execution.blocked",
+                    severity=EventSeverity.CRITICAL,
+                    component=EventComponent.GATEWAY,
+                    tenant_id=user_id,
+                    agent_id=agent.id,
+                    tool_name=request.tool_name,
+                    action=request.action_name,
+                    decision="BLOCK",
+                    status="BLOCKED",
+                    details={"reason": emg_reason, "error_code": "EMERGENCY_LOCKDOWN"},
+                )
+                return self._model_to_response(model)
 
         # 3. Create initial execution record
         exec_id = str(uuid.uuid4())
@@ -224,6 +241,19 @@ class ExecutionService:
                 "execution.blocked",
                 {"execution_id": model.id, "tool_name": request.tool_name, "action_name": request.action_name, "reason": model.error_message},
             )
+            await event_publisher.publish(
+                session=self.session,
+                event_type="execution.blocked",
+                severity=EventSeverity.HIGH,
+                component=EventComponent.SECURITY_ENGINE,
+                tenant_id=user_id,
+                agent_id=agent.id,
+                tool_name=request.tool_name,
+                action=request.action_name,
+                decision="BLOCK",
+                status="BLOCKED",
+                details={"reason": model.error_message, "risk_score": getattr(decision, "risk_score", 0.0)},
+            )
             return self._model_to_response(model)
 
         elif decision.decision == Decision.ASK_HUMAN:
@@ -282,6 +312,19 @@ class ExecutionService:
                 "execution.approval_required",
                 {"execution_id": model.id, "approval_id": approval_id, "tool_name": request.tool_name, "action_name": request.action_name},
             )
+            await event_publisher.publish(
+                session=self.session,
+                event_type="execution.approval_required",
+                severity=EventSeverity.MEDIUM,
+                component=EventComponent.SECURITY_ENGINE,
+                tenant_id=user_id,
+                agent_id=agent.id,
+                tool_name=request.tool_name,
+                action=request.action_name,
+                decision="ASK_HUMAN",
+                status="PENDING_APPROVAL",
+                details={"approval_id": approval_id, "risk_level": decision.risk_level.value, "risk_score": float(getattr(decision, "risk_score", 50.0))},
+            )
             return self._model_to_response(model)
 
         else:
@@ -330,6 +373,20 @@ class ExecutionService:
                 user_id,
                 evt_type,
                 {"execution_id": model.id, "tool_name": request.tool_name, "status": model.status},
+            )
+            await event_publisher.publish(
+                session=self.session,
+                event_type=evt_type,
+                severity=EventSeverity.INFO if model.status == ExecutionStatus.COMPLETED.value else EventSeverity.WARNING,
+                component=EventComponent.GATEWAY,
+                tenant_id=user_id,
+                agent_id=agent.id,
+                tool_name=request.tool_name,
+                action=request.action_name,
+                decision="ALLOW",
+                status=model.status,
+                latency_ms=model.duration_ms,
+                details={"execution_id": model.id, "error_code": model.error_code, "error_message": model.error_message},
             )
             return self._model_to_response(model)
 
@@ -430,6 +487,20 @@ class ExecutionService:
             user_id,
             "execution.completed",
             {"execution_id": model.id, "tool_name": model.tool_name, "status": model.status},
+        )
+        await event_publisher.publish(
+            session=self.session,
+            event_type="execution.completed" if model.status == ExecutionStatus.COMPLETED.value else "execution.failed",
+            severity=EventSeverity.INFO if model.status == ExecutionStatus.COMPLETED.value else EventSeverity.WARNING,
+            component=EventComponent.GATEWAY,
+            tenant_id=user_id,
+            agent_id=model.agent_id,
+            tool_name=model.tool_name,
+            action=model.action_name,
+            decision="ALLOW",
+            status=model.status,
+            latency_ms=model.duration_ms,
+            details={"execution_id": model.id, "approved": True, "notes": notes},
         )
         return self._model_to_response(model)
 

@@ -44,6 +44,45 @@ class AuditLog(Base, UUIDPrimaryKeyMixin):
         Text,
         nullable=False,
     )
+    # Phase 11 Tamper-Evident Hash Chain Fields
+    tenant_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
+    actor_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+    action: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+    target: Mapped[str | None] = mapped_column(
+        String(256),
+        nullable=True,
+    )
+    result: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+    sequence_number: Mapped[int | None] = mapped_column(
+        nullable=True,
+        index=True,
+    )
+    previous_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+    current_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
+    canonical_payload: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

@@ -14,10 +14,13 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agentshield.contracts.events import EventComponent, EventSeverity
 from agentshield.core.exceptions import AuthorizationError, ValidationError
 from agentshield.database.models.emergency import EmergencyControlModel
+from agentshield.observability.event_publisher import event_publisher
 from agentshield.realtime.event_broadcaster import broadcaster
 from agentshield.security.rbac import UserRole, can_manage_emergency_controls
+from agentshield.services.tamper_evident_audit import TamperEvidentAuditService
 
 logger = logging.getLogger("agentshield.services.emergency")
 
@@ -94,6 +97,33 @@ class EmergencyControlService:
             },
         )
 
+        audit_svc = TamperEvidentAuditService(self.session)
+        await audit_svc.record_audit_entry(
+            tenant_id=user_id,
+            actor_id=user_id,
+            actor_role=str(user_role),
+            action="emergency_control.activated",
+            target=f"emergency_control:{control.id}",
+            target_type="emergency_control",
+            result="SUCCESS",
+            details={
+                "control_type": control.control_type,
+                "target_identifier": control.target_identifier,
+                "reason": control.reason,
+            },
+        )
+        await event_publisher.publish(
+            session=self.session,
+            event_type="security.emergency_control.activated",
+            severity=EventSeverity.CRITICAL,
+            component=EventComponent.EMERGENCY,
+            tenant_id=user_id,
+            action=control.control_type,
+            decision="BLOCK",
+            status="active",
+            details={"control_id": control.id, "target": control.target_identifier, "reason": control.reason},
+        )
+
         logger.warning(
             "Emergency control '%s' activated on target '%s' by user '%s' (%s): %s",
             c_type,
@@ -147,6 +177,32 @@ class EmergencyControlService:
                 "revoked_at": control.revoked_at.isoformat() if control.revoked_at else None,
                 "revocation_reason": control.revocation_reason,
             },
+        )
+
+        audit_svc = TamperEvidentAuditService(self.session)
+        await audit_svc.record_audit_entry(
+            tenant_id=user_id,
+            actor_id=user_id,
+            actor_role=str(user_role),
+            action="emergency_control.revoked",
+            target=f"emergency_control:{control.id}",
+            target_type="emergency_control",
+            result="SUCCESS",
+            details={
+                "control_type": control.control_type,
+                "target_identifier": control.target_identifier,
+                "revocation_reason": control.revocation_reason,
+            },
+        )
+        await event_publisher.publish(
+            session=self.session,
+            event_type="security.emergency_control.revoked",
+            severity=EventSeverity.HIGH,
+            component=EventComponent.EMERGENCY,
+            tenant_id=user_id,
+            action=control.control_type,
+            status="revoked",
+            details={"control_id": control.id, "target": control.target_identifier, "reason": control.revocation_reason},
         )
 
         logger.info("Emergency control '%s' (%s) revoked by '%s'", control.id, control.control_type, user_id)

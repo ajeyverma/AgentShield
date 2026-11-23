@@ -54,6 +54,13 @@ class AgentShieldSettings(BaseSettings):
         description="Deployment mode: LOCAL or REMOTE.",
     )
 
+    @field_validator("env", mode="before")
+    @classmethod
+    def normalize_env(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
     # ------------------------------------------------------------------
     # Backend / API
     # ------------------------------------------------------------------

@@ -1,0 +1,33 @@
+# ==============================================================================
+# AgentShield AI — Systemd Service Unit File (Linux Deployment)
+# ==============================================================================
+
+[Unit]
+Description=AgentShield AI Backend Service
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=agentshield
+Group=agentshield
+WorkingDirectory=/opt/agentshield
+EnvironmentFile=/etc/agentshield/agentshield.env
+ExecStart=/opt/agentshield/venv/bin/uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+Restart=always
+RestartSec=5s
+
+# Security Hardening Directives
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/var/log/agentshield /var/lib/agentshield
+
+# Resource Limits
+LimitNOFILE=65536
+MemoryMax=2G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

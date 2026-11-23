@@ -1,146 +1,70 @@
 # AgentShield AI — System Architecture
 
-> **Phase 10 Complete** — Foundation, PySide6 Desktop UI, Backend & Database, Core Security Engine, Advanced Threat Detection Engine, Controlled Tool Execution Gateway, OpenAI Agents SDK Integration, MCP Firewall Gateway, Multi-Framework AI Agent Integrations (Claude, LangGraph, CrewAI, Google ADK), and Human Approval & Policy Management are fully implemented.
+## 1. High-Level Overview
 
----
-
-## 1. System Overview
-
-AgentShield AI enforces security between AI agents and the tools they use. It operates as an independent gateway — no AI agent can bypass or influence its security decisions.
+AgentShield AI is an independent, universal runtime security platform designed specifically to govern, monitor, intercept, and enforce policies on AI agents executing tool calls. Unlike self-reported or prompt-based guardrails, AgentShield operates as an out-of-band, authoritative gateway: an agent cannot execute actions on protected tools, networks, filesystems, or databases without an explicit cryptographic execution grant from AgentShield.
 
 ```
-USER / ADMIN
-    │
-    ▼
-AGENTSHIELD DESKTOP APPLICATION (PySide6)
-    │  Management & monitoring, live activity, threat inspection, MCP Gateway, multi-framework status, human approval
-    │  Authenticated REST API / WebSocket
-    │
-    ▼
-AGENTSHIELD BACKEND (FastAPI)
-    ├── API Layer             — Request routing, validation, auth
-    ├── Identity & Tenant     — Agent registration, Argon2 & JWT auth
-    ├── Security Core         — Independent decision engine (ALLOW / BLOCK / ASK_HUMAN)
-    ├── Policy Engine         — Rule evaluation, domain policies, precedence
-    ├── Threat Detection      — Modular detectors (Prompt injection, Data leakage, FS, CMD, Net, Behavioral)
-    ├── Threat Correlation    — Synthesizes multi-stage attack chains (0-100 score)
-    ├── Risk Engine           — Deterministic 0-100 scoring with explainable factors
-    ├── Approval Management   — Human approval workflows (SHA256 bound)
-    ├── Audit & Monitoring    — Activity event persistence & real-time WebSockets
-    │
-    ▼
-AGENTSHIELD CONTROLLED EXECUTION GATEWAY [Phase 6]
-    ├── Tool Registry         — Tool definitions, schemas, timeouts, output limits
-    ├── Execution Auth Mgr    — Single-use, short-lived grants bound to SHA256 argument hash
-    ├── Idempotency Engine    — Duplicate request deduplication and conflict detection
-    └── Controlled Adapters   — Server-side adapters (calculator, sandbox_fs, mock_email, mock_http)
-    │
-    ▼
-AGENTSHIELD INTEGRATIONS & PROTOCOL GATEWAYS [Phases 7, 8, 9]
-    ├── Core Shared SDK       — Universal BaseToolWrapper, AgentIdentity, execution client, conformance suite [Phase 9]
-    ├── OpenAI Agents SDK     — Intercepted tool wrappers, allowlists, fail-closed [Phase 7]
-    ├── MCP Firewall Gateway  — Protocol mediation, discovery namespacing, SSRF & STDIO shields [Phase 8]
-    ├── Claude Agent SDK      — Tool use API hooks, Anthropic tool schemas, approval pause [Phase 9]
-    ├── LangGraph             — AgentShieldToolNode, state graph workflow interruption [Phase 9]
-    ├── CrewAI                — Hierarchical multi-agent crews, least-privilege delegation [Phase 9]
-    └── Google ADK            — Google GenAI FunctionDeclaration & turn mediation [Phase 9]
++-------------------------------------------------------------------------+
+|                              AI Agent                                   |
+| (OpenAI Agents SDK / Anthropic Claude / LangGraph / CrewAI / Google ADK)|
++-------------------------------------------------------------------------+
+                                     │
+               1. Request Execution  │ (Tool call, args, provenance)
+                                     ▼
++-------------------------------------------------------------------------+
+|                  AgentShield Controlled Gateway                         |
+|   ┌───────────────────────┐         ┌───────────────────────────────┐   |
+|   │ Authentication        │         │ Policy Engine (Priority,      │   |
+|   │ (Agent Token / HMAC)  │         │ Deterministic, Zero-Eval)     │   |
+|   └──────────┬────────────┘         └───────────────▲───────────────┘   |
+|              │                                      │                   |
+|              ▼                                      │                   |
+|   ┌───────────────────────┐         ┌───────────────┴───────────────┐   |
+|   │ Threat Detection      │────────▶│ Core Decision Engine          │   |
+|   │ (PI, Exfil, Command)  │         │ (ALLOW / BLOCK / ASK_HUMAN)   │   |
+|   └───────────────────────┘         └───────────────┬───────────────┘   |
+|                                                     │                   |
+|                                                     ▼                   |
+|                                     ┌───────────────────────────────┐   |
+|                                     │ Execution Grant Generator     │   |
+|                                     │ (Single-use, HMAC bound)      │   |
+|                                     └───────────────┬───────────────┘   |
++-----------------------------------------------------┼-------------------+
+                                                      │
+                                                      ▼ 2. Execution Grant
++-------------------------------------------------------------------------+
+|                    Controlled Execution Boundary                        |
+|   ┌─────────────────────────────────────────────────────────────────┐   |
+|   │ Sandboxed Adapters: Shell / HTTP / Filesystem / Database        │   |
+|   └────────────────────────────────┬────────────────────────────────┘   |
++------------------------------------┼------------------------------------+
+                                     │
+                                     ▼ 3. Real World Execution
+                     [ External APIs / DB / OS / MCP ]
 ```
 
----
+## 2. Core Architectural Pillars
 
-## 2. Deployment Modes
+### 2.1 Backend Authority (FastAPI)
+The backend is the sole source of truth and enforcement. It executes:
+- **Authentication & Multi-Tenancy**: Agent tokens, user JWTs (Argon2 password hashing), and tenant isolation.
+- **Security Engine**: Deterministic policy evaluation, permission checks, and risk scoring ($0-100$).
+- **Threat Detection Suite**: Prompt injection detector, data leakage/PII redactor, filesystem path traversals, shell command sanitizers, and behavioral anomaly detectors.
+- **Execution Gateway**: Controlled boundary where registered tools run only if valid, single-use grants signed by the backend are presented.
+- **Audit Logging**: Cryptographically hash-chained event logs ensuring non-repudiation.
 
-### Local Mode (Development / Individual)
+### 2.2 Desktop Control Center (PySide6)
+A native, responsive light-themed desktop application providing operators and security analysts with:
+- Live real-time security telemetry over WebSockets.
+- Human Approval Center for `ASK_HUMAN` interventions with timeout handling and audit logging.
+- Policy Management with zero-eval rule builders and policy simulation sandboxes.
+- Threat Monitoring, audit trail explorer, incident forensics, and system settings.
 
-- Desktop application and backend run on the same machine or LAN.
-- SQLite database (no additional infrastructure required).
-- HTTP communication is acceptable on localhost.
-- Suitable for: development, testing, single-user deployments.
+### 2.3 Integration Layer & Interceptors
+- **Universal SDK Integration**: Drop-in adapters wrapping native agent tool registries (OpenAI Agents SDK, Claude, LangGraph, CrewAI, Google ADK).
+- **Model Context Protocol (MCP) Gateway**: Intercepts MCP JSON-RPC protocol messages (`tools/call`, `resources/read`), performing parameter redaction, tool whitelisting, and SSRF prevention.
 
-### Remote Mode (Production / Enterprise)
-
-- Backend runs on a dedicated server or cloud environment.
-- Desktop application connects over authenticated HTTPS.
-- PostgreSQL as the persistent database.
-- Multiple agent connectors can communicate with one centralized backend.
-- Configuration changes (backend URL) do not require code changes in the desktop app.
-
----
-
-## 3. Component Responsibilities
-
-### Desktop Application
-
-- **Management interface only.** Displays security events, policies, agent status, and approval queues.
-- **Never enforces security.** Does not contain policy evaluation logic.
-- Communicates with the backend through authenticated REST and WebSocket APIs.
-- Closing the desktop app does not stop the backend.
-
-### Security Backend
-
-- The **only** security enforcement point in the system.
-- Operates independently of the desktop application.
-- Accepts action requests from integration adapters.
-- Returns SecurityDecision (ALLOW / BLOCK / ASK_HUMAN).
-- Records every decision in the audit log.
-- Issues cryptographically signed execution authorization tokens.
-
-### Integration Layer
-
-- Intercepts tool calls within AI agent frameworks.
-- Maps native tool-call formats to the shared ActionRequest contract.
-- Submits requests to the backend for evaluation.
-- Obeys the SecurityDecision — it cannot override or modify it.
-- Enforces fail-closed behavior when the backend is unreachable.
-
----
-
-## 4. Security Architecture Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| Fail-closed | If the backend is unreachable, default to BLOCK. Never ALLOW on backend failure. |
-| No trust in agent identity | tenant_id, agent_id, session_id are always derived server-side, never from agent request payload. |
-| Signed execution tokens | Execution gateway validates a backend-issued decision_id before invoking any tool. |
-| Backend-independent desktop | Desktop app connects by URL; changing the URL is the only change needed to switch environments. |
-| Shared contracts | SDK and MCP integrations use the same ActionRequest / SecurityDecision contracts. |
-| Tenant isolation | All data is scoped by tenant_id. Row-level filtering enforced at the repository layer [Phase 2+]. |
-
----
-
-## 5. Data Flow — Action Evaluation
-
-```
-Agent Framework
-    │  (native tool call)
-    ▼
-Integration Adapter
-    │  normalize_request() → ActionRequest
-    ▼
-AgentShield Backend  (POST /api/v1/evaluate)
-    │  Validate → Identity → Security Core → Audit log
-    ▼
-SecurityDecision  (ALLOW | BLOCK | ASK_HUMAN)
-    │
-    ├── ALLOW     → Execution Gateway (with signed token) → Tool
-    ├── BLOCK     → Return error to agent
-    └── ASK_HUMAN → Approval workflow → (eventual ALLOW or BLOCK)
-```
-
----
-
-## 6. Technology Stack
-
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| Language | Python | ≥ 3.11 |
-| Backend | FastAPI + uvicorn | ≥ 0.115 |
-| Desktop | PySide6 | ≥ 6.7 |
-| Validation | Pydantic v2 | ≥ 2.9 |
-| ORM | SQLAlchemy (async) | ≥ 2.0 |
-| Migrations | Alembic | ≥ 1.13 |
-| Database (prod) | PostgreSQL | 16+ |
-| Database (dev) | SQLite (aiosqlite) | — |
-| Real-time | WebSockets | ≥ 13.0 |
-| Testing | Pytest + pytest-asyncio | ≥ 8.0 |
-| Containers | Docker + Docker Compose | — |
+### 2.4 Data Layer (PostgreSQL & SQLite)
+- **Primary**: PostgreSQL with async SQLAlchemy 2.0 and Alembic schema migrations.
+- **Local / Edge**: Support for `sqlite+aiosqlite` for single-user offline development or edge deployments.

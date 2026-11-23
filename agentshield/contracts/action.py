@@ -228,6 +228,33 @@ class ActionRequest(BaseModel):
     ]
 
     # ------------------------------------------------------------------
+    # Target resource & requested permissions (Phase 4 extensions)
+    # ------------------------------------------------------------------
+
+    resource: Annotated[
+        str | None,
+        Field(
+            default=None,
+            max_length=1024,
+            description=(
+                "[TRUST: AGENT-SUPPLIED — UNTRUSTED] "
+                "Target resource being accessed (file path, endpoint, host, database table, etc.)."
+            ),
+        ),
+    ]
+
+    requested_permissions: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description=(
+                "[TRUST: AGENT-SUPPLIED — UNTRUSTED] "
+                "List of permission scopes requested for this action (e.g. ['read', 'write'])."
+            ),
+        ),
+    ]
+
+    # ------------------------------------------------------------------
     # Provenance / source context
     # ------------------------------------------------------------------
 

@@ -134,6 +134,20 @@ class SecurityDecision(BaseModel):
         ),
     ]
 
+    policy_version: Annotated[
+        int,
+        Field(
+            default=1,
+            ge=1,
+            description="Effective security policy version used during evaluation.",
+        ),
+    ]
+
+    @property
+    def matched_policy_ids(self) -> list[str]:
+        """Convenience property returning string IDs of matched policies."""
+        return [str(p.policy_id) for p in self.matched_policies]
+
     # ------------------------------------------------------------------
     # Human approval (populated only when decision == ASK_HUMAN)
     # ------------------------------------------------------------------

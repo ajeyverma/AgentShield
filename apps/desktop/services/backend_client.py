@@ -287,6 +287,66 @@ class BackendClient:
             logger.warning("Failed to fetch integrations: %s", exc)
             return None
 
+    # ── Security Core (Phase 4) ──────────────────────────────────────────────
+
+    def evaluate_action(self, action_request: dict[str, Any]) -> dict[str, Any] | None:
+        """Submit an ActionRequest to the security core for evaluation."""
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/security/evaluate",
+                headers=self._headers(),
+                json=action_request,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Action evaluation request failed: %s", exc)
+            return None
+
+    def get_security_decisions(
+        self,
+        page: int = 1,
+        size: int = 50,
+        agent_id: str | None = None,
+        decision: str | None = None,
+        risk_level: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Fetch historical security decisions."""
+        try:
+            params = [f"page={page}", f"size={size}"]
+            if agent_id:
+                params.append(f"agent_id={agent_id}")
+            if decision:
+                params.append(f"decision={decision}")
+            if risk_level:
+                params.append(f"risk_level={risk_level}")
+            qs = "&".join(params)
+            resp = self._client.get(
+                f"{self.api_prefix}/security/decisions?{qs}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch security decisions: %s", exc)
+            return None
+
+    def get_security_decision(self, decision_id: str) -> dict[str, Any] | None:
+        """Retrieve a single security decision by ID."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/security/decisions/{decision_id}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch decision %s: %s", decision_id, exc)
+            return None
+
     # ── WebSocket URL ────────────────────────────────────────────────────────
 
     def get_websocket_url(self) -> str:

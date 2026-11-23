@@ -1,6 +1,6 @@
 # AgentShield AI — API Contracts Reference
 
-> **Phase 1** — Contracts defined. Evaluation endpoints are planned for Phase 3.
+> **Phase 4** — Core Security Engine Active. Evaluation and decision history endpoints implemented.
 
 ---
 
@@ -10,7 +10,7 @@ All integrations (SDK adapters, MCP proxy, direct API callers) use the same norm
 
 ---
 
-## ActionRequest
+## ActionRequest Contract
 
 Submitted by an integration adapter when an AI agent requests a tool call.
 
@@ -25,7 +25,9 @@ Submitted by an integration adapter when an AI agent requests a tool call.
   "tool_name": "string (1–128 chars) — UNTRUSTED from agent",
   "tool_category": "FILE_SYSTEM | NETWORK | DATABASE | EMAIL | BROWSER | TERMINAL | EXTERNAL_API | MEMORY | CODE_EXECUTION | AUTHENTICATION | MESSAGING | CALENDAR | UNKNOWN",
   "operation": "string (0–128 chars) | null — UNTRUSTED from agent",
-  "arguments": "object (max 65 536 bytes serialized) — UNTRUSTED from agent",
+  "resource": "string | null — target path, URI, table, or resource identifier",
+  "requested_permissions": ["string (e.g. 'read', 'write')"],
+  "arguments": "object (max 65,536 bytes serialized) — UNTRUSTED from agent",
   "source": {
     "agent_framework": "string | null",
     "agent_version": "string | null",
@@ -37,32 +39,20 @@ Submitted by an integration adapter when an AI agent requests a tool call.
 }
 ```
 
-### Identity Trust Boundaries
-
-| Field | Trust Level | Source |
-|-------|------------|--------|
-| `tenant_id` | **SERVER-DERIVED** | Resolved from authenticated API key |
-| `agent_id` | **SERVER-DERIVED** | Assigned at connector registration |
-| `user_id` | **SERVER-DERIVED** | Derived from authenticated session |
-| `session_id` | **SERVER-DERIVED** | Issued by the backend |
-| `tool_name` | **UNTRUSTED** | Supplied by the AI agent |
-| `operation` | **UNTRUSTED** | Supplied by the AI agent |
-| `arguments` | **UNTRUSTED** | Supplied by the AI agent |
-
 ---
 
-## SecurityDecision
+## SecurityDecision Contract
 
-Returned by the backend security core in response to an ActionRequest.
+Authoritative security decision produced exclusively by the AgentShield backend security core.
 
 ```json
 {
-  "request_id": "uuid (mirrors the ActionRequest.request_id)",
-  "decision_id": "uuid (unique identifier for this decision)",
+  "request_id": "uuid",
+  "decision_id": "uuid",
   "decision": "ALLOW | BLOCK | ASK_HUMAN",
-  "risk_score": "float [0.0, 100.0]",
+  "risk_score": 0.0,
   "risk_level": "NONE | LOW | MEDIUM | HIGH | CRITICAL",
-  "reasons": ["string", "..."],
+  "reasons": ["Human-readable explanation of factors influencing decision"],
   "matched_policies": [
     {
       "policy_id": "uuid",
@@ -70,52 +60,32 @@ Returned by the backend security core in response to an ActionRequest.
       "rule_id": "string | null"
     }
   ],
-  "approval_required": "boolean",
-  "approval_id": "uuid | null (populated only on ASK_HUMAN)",
-  "approval_timeout_seconds": "integer | null (populated only on ASK_HUMAN)",
+  "policy_version": 1,
+  "approval_required": false,
+  "approval_id": "uuid | null",
+  "approval_timeout_seconds": 300,
   "evaluated_at": "ISO 8601 UTC datetime",
-  "evaluation_duration_ms": "float | null"
+  "evaluation_duration_ms": 1.5
 }
 ```
 
-### Decision Handling
-
-| Decision | Integration Behavior |
-|----------|---------------------|
-| `ALLOW` | Forward tool call to Execution Gateway (with signed decision_id) |
-| `BLOCK` | Reject immediately; return structured error to agent |
-| `ASK_HUMAN` | Suspend agent execution; poll `approval_id` for resolution |
-
 ---
 
-## Enumerations
+## Security Core API Endpoints
 
-### Decision
-`ALLOW` · `BLOCK` · `ASK_HUMAN`
+### 1. Evaluate Action Request
+- **Endpoint:** `POST /api/v1/security/evaluate`
+- **Headers:** `X-Agent-Credential: <agent_token>` OR `Authorization: Bearer <user_jwt>`
+- **Request Body:** `ActionRequest`
+- **Response (200):** `SecurityDecision`
 
-### RiskLevel
-`NONE` · `LOW` · `MEDIUM` · `HIGH` · `CRITICAL`
+### 2. List Historical Decisions
+- **Endpoint:** `GET /api/v1/security/decisions`
+- **Headers:** `Authorization: Bearer <user_jwt>`
+- **Query Params:** `page` (default 1), `size` (default 20), `agent_id`, `decision`, `risk_level`
+- **Response (200):** `PaginatedResponse[SecurityDecisionSummary]`
 
-### IntegrationType
-`SDK_OPENAI` · `SDK_CLAUDE` · `SDK_LANGGRAPH` · `SDK_CREWAI` · `SDK_GOOGLE_ADK` · `SDK_CUSTOM` · `MCP` · `API` · `UNKNOWN`
-
-### ToolCategory
-`FILE_SYSTEM` · `NETWORK` · `DATABASE` · `EMAIL` · `BROWSER` · `TERMINAL` · `EXTERNAL_API` · `MEMORY` · `CODE_EXECUTION` · `AUTHENTICATION` · `MESSAGING` · `CALENDAR` · `UNKNOWN`
-
-### ActionStatus
-`PENDING` · `EVALUATING` · `APPROVED` · `BLOCKED` · `AWAITING_APPROVAL` · `EXECUTING` · `COMPLETED` · `FAILED` · `EXPIRED` · `CANCELLED`
-
----
-
-## Planned API Endpoints (Phase 2+)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/api/v1/health` | ✅ Health check (Phase 1) |
-| `POST` | `/api/v1/auth/token` | Authenticate and receive JWT |
-| `POST` | `/api/v1/agents/register` | Register an agent connector |
-| `POST` | `/api/v1/evaluate` | Submit ActionRequest → receive SecurityDecision |
-| `GET` | `/api/v1/approvals/{id}` | Poll approval status |
-| `POST` | `/api/v1/approvals/{id}/respond` | Human approves or rejects |
-| `GET` | `/api/v1/audit` | Query audit log |
-| `WS` | `/api/v1/ws/events` | Real-time event stream |
+### 3. Get Decision Details
+- **Endpoint:** `GET /api/v1/security/decisions/{decision_id}`
+- **Headers:** `Authorization: Bearer <user_jwt>`
+- **Response (200):** Detailed decision object

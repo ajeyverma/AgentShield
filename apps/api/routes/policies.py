@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from apps.api.dependencies import CurrentUser, DbSession
 from agentshield.core.exceptions import PolicyNotFoundError
+from agentshield.realtime.event_broadcaster import broadcaster
 from agentshield.services.policy_service import PolicyService
 from agentshield.services.schemas import PaginatedResponse, PolicyCreate, PolicyResponse, PolicyUpdate
 
@@ -35,7 +36,9 @@ async def create_policy(
 ) -> PolicyResponse:
     """Create a new security policy."""
     service = PolicyService(db)
-    return await service.create_policy(user.id, data)
+    pol = await service.create_policy(user.id, data)
+    await broadcaster.broadcast_event(user.id, "security.policy.updated", {"action": "created", "policy_id": pol.id})
+    return pol
 
 
 @router.get("/{policy_id}", response_model=PolicyResponse)
@@ -62,7 +65,9 @@ async def update_policy(
     """Update policy attributes."""
     service = PolicyService(db)
     try:
-        return await service.update_policy(policy_id, user.id, data)
+        pol = await service.update_policy(policy_id, user.id, data)
+        await broadcaster.broadcast_event(user.id, "security.policy.updated", {"action": "updated", "policy_id": pol.id})
+        return pol
     except PolicyNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc.message)) from exc
 
@@ -77,5 +82,6 @@ async def delete_policy(
     service = PolicyService(db)
     try:
         await service.delete_policy(policy_id, user.id)
+        await broadcaster.broadcast_event(user.id, "security.policy.updated", {"action": "deleted", "policy_id": policy_id})
     except PolicyNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc.message)) from exc

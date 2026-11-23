@@ -2,141 +2,69 @@
 
 **Universal Runtime Security Gateway for AI Agents**
 
-[![Phase](https://img.shields.io/badge/Phase-1%20Foundation-blue)]()
+[![Phase](https://img.shields.io/badge/Phase-4%20Core%20Security%20Engine-blue)]()
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-green)]()
 [![PySide6](https://img.shields.io/badge/PySide6-6.7%2B-green)]()
+[![Tests](https://img.shields.io/badge/Tests-161%20Passed-brightgreen)]()
 
 ---
 
 ## Overview
 
-AgentShield AI is a security platform that acts as an independent enforcement layer between AI agents and the tools they use. It monitors, intercepts, and controls every tool call made by AI agents, applying security policy and making three possible decisions:
+AgentShield AI is an independent runtime security layer for AI agents. It monitors, intercepts, and controls tool invocations across external APIs, files, databases, and terminals, evaluating permissions, policies, and risk to make three authoritative decisions:
 
 | Decision | Meaning |
 |----------|---------|
 | **ALLOW** | Permit an authorized and safe action |
 | **BLOCK** | Prevent an unauthorized or dangerous action |
-| **ASK_HUMAN** | Pause until an authorized human approves |
+| **ASK_HUMAN** | Suspend action and require authorized human approval |
 
-Security decisions are made by the AgentShield backend — not by the AI agent itself.
+Security decisions are independently computed and enforced by AgentShield's backend — never by the AI agent itself.
 
 ---
 
-## Components
+## Architecture & Progress
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Desktop Application | Python + PySide6 | Security monitoring dashboard |
-| Security Backend | Python + FastAPI | Security enforcement and policy evaluation |
-| Integration Layer | Python SDKs + MCP | Intercept tool calls from AI frameworks |
+| Phase | Component | Status | Highlights |
+|-------|-----------|--------|------------|
+| **Phase 1** | Project Foundation | ✅ Complete | Shared contracts, settings, and base architecture |
+| **Phase 2** | Desktop Interface | ✅ Complete | Light-themed PySide6 application shell with 9 management views |
+| **Phase 3** | Backend & Database | ✅ Complete | FastAPI REST APIs, SQLAlchemy 2.0 ORM, Alembic migrations, Argon2 & JWT auth, real-time WebSockets |
+| **Phase 4** | Core Security Engine | ✅ Complete | Deterministic decision engine, domain rules, permission engine, risk scoring (0-100), policy conflict resolution |
+| **Phase 5+** | Integrations & Execution Gateway | ⏳ Planned | SDK adapters, MCP gateway, controlled execution |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11 or higher
-- pip
-
-### 1. Clone and set up environment
-
+### 1. Database Migrations
 ```bash
-git clone <repository-url>
-cd agentshield-ai
-
-# Create a virtual environment
-python -m venv .venv
-
-# Activate it
-# Windows:
-.venv\Scripts\activate
-# macOS / Linux:
-source .venv/bin/activate
+python -m alembic upgrade head
 ```
 
-### 2. Install dependencies
-
-```bash
-# Core shared contracts only
-pip install -e .
-
-# Backend API dependencies
-pip install -e ".[api]"
-
-# Desktop application dependencies
-pip install -e ".[desktop]"
-
-# Development / testing tools
-pip install -e ".[dev]"
-
-# Everything
-pip install -e ".[all]"
-```
-
-### 3. Configure environment
-
-```bash
-cp .env.example .env
-# Edit .env to set your database URL, secret key, etc.
-```
-
-### 4. Start the backend
-
+### 2. Start Backend API Server
 ```bash
 uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Health check:
-```bash
-curl http://localhost:8000/api/v1/health
-```
-
-### 5. Start the desktop application
-
+### 3. Start PySide6 Desktop Application
 ```bash
 python apps/desktop/main.py
 ```
 
-### 6. Run tests
-
+### 4. Run Automated Test Suite (161 Tests)
 ```bash
-pytest
+pytest tests/ -v
 ```
 
 ---
 
-## Development
+## Documentation
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full development guide.
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the system architecture.
-
-## Security Model
-
-See [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) for security design decisions.
-
-## API Contracts
-
-See [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md) for the shared data contracts.
-
-## Phase Roadmap
-
-See [docs/PHASE_ROADMAP.md](docs/PHASE_ROADMAP.md) for the 12-phase development plan.
-
----
-
-## Project Status
-
-**Phase 1 — Foundation** ✅
-
-The project foundation, architecture, shared contracts, backend skeleton, and desktop skeleton are established.
-
----
-
-## License
-
-Proprietary — All rights reserved.
+- [Core Security Engine](docs/SECURITY_ENGINE.md)
+- [Policy Evaluation Engine](docs/POLICY_ENGINE.md)
+- [Risk Scoring Methodology](docs/RISK_SCORING.md)
+- [Decision Model & Examples](docs/DECISION_MODEL.md)
+- [API Contracts](docs/API_CONTRACTS.md)
+- [System Architecture](docs/ARCHITECTURE.md)

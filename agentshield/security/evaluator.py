@@ -17,6 +17,7 @@ from typing import Sequence
 from agentshield.contracts.action import ActionRequest
 from agentshield.contracts.decision import PolicyMatch, SecurityDecision
 from agentshield.contracts.enums import Decision, RiskLevel
+from agentshield.contracts.threat import ThreatAnalysisResult, ThreatSeverity
 from agentshield.database.models.policy import Policy
 from agentshield.security.permissions import AgentPermissions, PermissionEvaluator
 from agentshield.security.policy_engine import PolicyEngine
@@ -39,6 +40,7 @@ class SecurityDecisionEngine:
         request: ActionRequest,
         permissions: AgentPermissions | None = None,
         db_policies: Sequence[Policy] = (),
+        threat_result: ThreatAnalysisResult | None = None,
     ) -> SecurityDecision:
         """Evaluate an ActionRequest and return an authoritative SecurityDecision.
 
@@ -113,24 +115,44 @@ class SecurityDecisionEngine:
                     evaluation_duration_ms=round(duration_ms, 2),
                 )
 
-            # ── 4. Risk Assessment ─────────────────────────────────────────────
-            risk = RiskScoringEngine.calculate_score(request)
+            # ── 4. Risk Assessment & Threat Signals Integration ───────────────
+            threat_score = threat_result.overall_threat_score if threat_result else 0.0
+            if threat_result:
+                for tf in threat_result.findings:
+                    reasons.append(f"Threat Finding [{tf.threat_type.value}]: {tf.title} ({tf.severity.value})")
+                for corr in threat_result.correlations:
+                    reasons.append(f"Threat Correlation: {corr.title} (Score: {corr.threat_score})")
+                if threat_result.incomplete_analysis:
+                    reasons.append("Threat analysis incomplete: one or more detectors failed or timed out.")
+
+            risk = RiskScoringEngine.calculate_score(request, threat_score=threat_score)
             for factor in risk.factors:
                 reasons.append(f"Risk [{factor.factor_name} +{factor.impact}]: {factor.description}")
 
             # ── 5. Approval & Decision Precedence ───────────────────────────────
             # ASK_HUMAN triggered if:
             #   a) Policy required approval, OR
-            #   b) Risk score exceeds max permitted risk from permissions
+            #   b) Risk score exceeds max permitted risk from permissions, OR
+            #   c) Threat analysis detected CRITICAL threat with high score
+            critical_threat_detected = (
+                threat_result is not None
+                and (threat_result.highest_severity == ThreatSeverity.CRITICAL or threat_score >= 85.0)
+            )
+
             requires_approval = (
                 policy_result.decision == Decision.ASK_HUMAN
                 or policy_result.requires_approval
                 or risk.score > effective_perms.max_permitted_risk_score
+                or critical_threat_detected
             )
 
             if requires_approval and policy_result.decision != Decision.BLOCK:
                 approval_id = uuid.uuid4()
-                if risk.score > effective_perms.max_permitted_risk_score:
+                if critical_threat_detected:
+                    reasons.append(
+                        f"Critical threat signal detected (score: {threat_score}): human approval required."
+                    )
+                elif risk.score > effective_perms.max_permitted_risk_score:
                     reasons.append(
                         f"Risk score {risk.score} exceeds agent permitted threshold ({effective_perms.max_permitted_risk_score}): human approval required."
                     )

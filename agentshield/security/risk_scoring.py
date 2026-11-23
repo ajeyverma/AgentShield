@@ -60,7 +60,12 @@ class RiskScoringEngine:
     VERSION = "1.0"
 
     @classmethod
-    def calculate_score(cls, request: ActionRequest) -> RiskAssessment:
+    def calculate_score(
+        cls,
+        request: ActionRequest,
+        threat_score: float = 0.0,
+        threat_factors: list[RiskFactor] | None = None,
+    ) -> RiskAssessment:
         factors: list[RiskFactor] = []
         base_score = 0.0
 
@@ -130,7 +135,24 @@ class RiskScoringEngine:
                 factors.append(RiskFactor("ElevatedRequestedPermissions", impact, f"Requested elevated scopes: {request.requested_permissions}."))
                 base_score += impact
 
-        # ── 5. Clamping and Level Assignment ─────────────────────────────────
+        # ── 5. Threat Intelligence & Anomaly Signal Contribution ──────────────
+        if threat_score > 0.0:
+            impact = min(40.0, round(threat_score * 0.4, 1))
+            factors.append(
+                RiskFactor(
+                    "ThreatDetectionSignal",
+                    impact,
+                    f"Threat detection engine flagged suspicious activity (threat score: {threat_score}).",
+                )
+            )
+            base_score += impact
+
+        if threat_factors:
+            for tf in threat_factors:
+                factors.append(tf)
+                base_score += tf.impact
+
+        # ── 6. Clamping and Level Assignment ─────────────────────────────────
         final_score = max(0.0, min(100.0, round(base_score, 1)))
 
         if final_score < 25.0:

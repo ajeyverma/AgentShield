@@ -24,9 +24,11 @@ from agentshield.database.models.agent import Agent
 from agentshield.database.models.approval import ApprovalRequest
 from agentshield.database.models.policy import Policy
 from agentshield.database.models.security_decision import SecurityDecisionModel
+from agentshield.database.models.threat_finding import ThreatFindingModel
 from agentshield.realtime.event_broadcaster import broadcaster
 from agentshield.security.engine import compute_canonical_request_hash, security_engine
 from agentshield.services.schemas import PaginatedResponse
+from agentshield.threat_detection.engine import threat_coordinator
 
 logger = logging.getLogger("agentshield.services.security")
 
@@ -51,16 +53,64 @@ class SecurityService:
         )
         db_policies = (await self.session.execute(stmt_policies)).scalars().all()
 
-        # 2. Evaluate through the Core Decision Engine
+        # 2. Fetch recent activity history for behavioral analysis
+        stmt_history = select(ActivityEvent).where(
+            ActivityEvent.user_id == user_id,
+            ActivityEvent.agent_id == agent.id,
+        ).order_by(ActivityEvent.created_at.desc()).limit(30)
+        history_rows = (await self.session.execute(stmt_history)).scalars().all()
+        history_items = [
+            {
+                "agent_id": h.agent_id,
+                "user_id": h.user_id,
+                "tool_name": h.tool_name,
+                "operation": h.operation,
+                "decision": h.decision,
+                "created_at": h.created_at,
+            }
+            for h in reversed(history_rows)
+        ]
+
+        # 3. Execute Threat Detection Coordinator
+        threat_result = threat_coordinator.analyze_action(
+            request=request,
+            provenance=getattr(request, "provenance_context", None),
+            history=history_items,
+        )
+
+        # 4. Evaluate through the Core Decision Engine with threat signals
         decision = security_engine.evaluate_action(
             authenticated_user_id=user_id,
             authenticated_agent_id=agent.id,
             agent_status=agent.status,
             request=request,
             db_policies=db_policies,
+            threat_result=threat_result,
         )
 
-        # 3. If decision is ASK_HUMAN, create pending ApprovalRequest record
+        # 5. Persist Threat Findings (if any)
+        for tf in threat_result.findings:
+            finding_model = ThreatFindingModel(
+                id=str(tf.finding_id),
+                request_id=str(request.request_id),
+                user_id=user_id,
+                agent_id=agent.id,
+                detector_id=tf.detector_id,
+                threat_type=tf.threat_type.value if hasattr(tf.threat_type, "value") else str(tf.threat_type),
+                title=tf.title,
+                description=tf.description,
+                severity=tf.severity.value if hasattr(tf.severity, "value") else str(tf.severity),
+                confidence=tf.confidence.value if hasattr(tf.confidence, "value") else str(tf.confidence),
+                risk_contribution=tf.risk_contribution,
+                evidence_json=json.dumps(tf.evidence) if tf.evidence else None,
+                affected_resource=tf.affected_resource,
+                recommended_action=tf.recommended_action,
+                status=tf.status.value if hasattr(tf.status, "value") else str(tf.status),
+                detector_version=tf.detector_version,
+            )
+            self.session.add(finding_model)
+
+        # 6. If decision is ASK_HUMAN, create pending ApprovalRequest record
         if decision.decision == Decision.ASK_HUMAN and decision.approval_id:
             req_hash = compute_canonical_request_hash(request)
             now_utc = datetime.now(timezone.utc)
@@ -113,7 +163,7 @@ class SecurityService:
 
         await self.session.commit()
 
-        # 6. Broadcast Real-Time WebSocket Events
+        # 8. Broadcast Real-Time WebSocket Events
         event_payload = {
             "decision_id": str(decision.decision_id),
             "request_id": str(decision.request_id),
@@ -131,6 +181,46 @@ class SecurityService:
             await broadcaster.broadcast_event(user_id, "security.action.blocked", event_payload)
         elif decision.decision == Decision.ASK_HUMAN:
             await broadcaster.broadcast_event(user_id, "security.approval.required", event_payload)
+
+        # Broadcast Threat Events
+        for tf in threat_result.findings:
+            await broadcaster.broadcast_event(
+                user_id,
+                "threat.finding.created",
+                {
+                    "finding_id": str(tf.finding_id),
+                    "request_id": str(request.request_id),
+                    "agent_id": agent.id,
+                    "threat_type": tf.threat_type.value if hasattr(tf.threat_type, "value") else str(tf.threat_type),
+                    "title": tf.title,
+                    "severity": tf.severity.value if hasattr(tf.severity, "value") else str(tf.severity),
+                    "confidence": tf.confidence.value if hasattr(tf.confidence, "value") else str(tf.confidence),
+                },
+            )
+
+        for corr in threat_result.correlations:
+            await broadcaster.broadcast_event(
+                user_id,
+                "threat.correlation.created",
+                {
+                    "correlation_id": str(corr.correlation_id),
+                    "agent_id": agent.id,
+                    "threat_score": corr.threat_score,
+                    "overall_severity": corr.overall_severity.value if hasattr(corr.overall_severity, "value") else str(corr.overall_severity),
+                    "title": corr.title,
+                },
+            )
+
+        if threat_result.incomplete_analysis:
+            await broadcaster.broadcast_event(
+                user_id,
+                "threat.analysis.incomplete",
+                {
+                    "request_id": str(request.request_id),
+                    "agent_id": agent.id,
+                    "errors": threat_result.analysis_errors,
+                },
+            )
 
         return decision
 

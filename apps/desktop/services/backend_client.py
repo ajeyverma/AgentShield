@@ -347,6 +347,122 @@ class BackendClient:
             logger.warning("Failed to fetch decision %s: %s", decision_id, exc)
             return None
 
+    # ── Threat Detection (Phase 5) ───────────────────────────────────────────
+
+    def analyze_threats(
+        self,
+        action_request_data: dict[str, Any],
+        provenance_data: dict[str, Any] | None = None,
+        relevant_history: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | None:
+        """Submit action for threat detection analysis without executing."""
+        try:
+            payload = {
+                "action_request": action_request_data,
+                "provenance": provenance_data,
+                "relevant_history": relevant_history or [],
+            }
+            resp = self._client.post(
+                f"{self.api_prefix}/threat-detection/analyze",
+                json=payload,
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Threat analysis failed: %s", exc)
+            return None
+
+    def get_threat_findings(
+        self,
+        agent_id: str | None = None,
+        threat_type: str | None = None,
+        severity: str | None = None,
+        status: str | None = None,
+        page: int = 1,
+        size: int = 20,
+    ) -> dict[str, Any] | None:
+        """Fetch granular threat findings with pagination and filters."""
+        try:
+            params = [f"page={page}", f"size={size}"]
+            if agent_id:
+                params.append(f"agent_id={agent_id}")
+            if threat_type:
+                params.append(f"threat_type={threat_type}")
+            if severity:
+                params.append(f"severity={severity}")
+            if status:
+                params.append(f"status={status}")
+            qs = "&".join(params)
+            resp = self._client.get(
+                f"{self.api_prefix}/threat-detection/findings?{qs}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch threat findings: %s", exc)
+            return None
+
+    def get_threat_finding(self, finding_id: str) -> dict[str, Any] | None:
+        """Fetch single threat finding by ID with evidence."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/threat-detection/findings/{finding_id}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch finding %s: %s", finding_id, exc)
+            return None
+
+    def update_threat_finding_status(self, finding_id: str, status: str) -> dict[str, Any] | None:
+        """Update threat finding status."""
+        try:
+            resp = self._client.patch(
+                f"{self.api_prefix}/threat-detection/findings/{finding_id}",
+                json={"status": status},
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to update finding %s status: %s", finding_id, exc)
+            return None
+
+    def get_threat_summary(self) -> dict[str, Any] | None:
+        """Fetch high-level threat statistics and category distribution."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/threat-detection/summary",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch threat summary: %s", exc)
+            return None
+
+    def get_detectors(self) -> list[dict[str, Any]] | None:
+        """List registered server-side threat detectors and versions."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/threat-detection/detectors",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch detectors: %s", exc)
+            return None
+
     # ── WebSocket URL ────────────────────────────────────────────────────────
 
     def get_websocket_url(self) -> str:

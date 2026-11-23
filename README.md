@@ -32,7 +32,8 @@ Security decisions are independently computed and enforced by AgentShield's back
 | **Phase 2** | Desktop Interface | ✅ Complete | Light-themed PySide6 application shell with 9 management views |
 | **Phase 3** | Backend & Database | ✅ Complete | FastAPI REST APIs, SQLAlchemy 2.0 ORM, Alembic migrations, Argon2 & JWT auth, real-time WebSockets |
 | **Phase 4** | Core Security Engine | ✅ Complete | Deterministic decision engine, domain rules, permission engine, risk scoring (0-100), policy conflict resolution |
-| **Phase 5+** | Integrations & Execution Gateway | ⏳ Planned | SDK adapters, MCP gateway, controlled execution |
+| **Phase 5** | Threat Detection Engine | ✅ Complete | Modular detectors (Prompt Injection, Data Leakage, Filesystem, Commands, Network, Behavioral), Correlation Engine |
+| **Phase 6+** | Integrations & Execution Gateway | ⏳ Planned | SDK adapters, MCP gateway, controlled execution |
 
 ---
 
@@ -53,7 +54,7 @@ uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload
 python apps/desktop/main.py
 ```
 
-### 4. Run Automated Test Suite (161 Tests)
+### 4. Run Automated Test Suite (211 Tests)
 ```bash
 pytest tests/ -v
 ```
@@ -62,6 +63,13 @@ pytest tests/ -v
 
 ## Documentation
 
+- [Threat Detection Engine](docs/THREAT_DETECTION.md)
+- [Prompt Injection Detection](docs/PROMPT_INJECTION.md)
+- [Data Leakage & Redaction](docs/DATA_LEAKAGE_DETECTION.md)
+- [Provenance Model](docs/PROVENANCE_MODEL.md)
+- [Behavioral Anomaly Analysis](docs/BEHAVIORAL_ANALYSIS.md)
+- [Threat Correlation](docs/THREAT_CORRELATION.md)
+- [Detection Limitations](docs/DETECTION_LIMITATIONS.md)
 - [Core Security Engine](docs/SECURITY_ENGINE.md)
 - [Policy Evaluation Engine](docs/POLICY_ENGINE.md)
 - [Risk Scoring Methodology](docs/RISK_SCORING.md)

@@ -1,6 +1,6 @@
 # AgentShield AI — System Architecture
 
-> **Phase 1** — Foundation architecture only. Components marked [Phase N+] are planned but not yet implemented.
+> **Phase 5 Complete** — Foundation, PySide6 Desktop UI, Backend & Database, Core Security Engine, and Advanced Threat Detection Engine are fully implemented.
 
 ---
 
@@ -13,26 +13,26 @@ USER / ADMIN
     │
     ▼
 AGENTSHIELD DESKTOP APPLICATION (PySide6)
-    │  Management & monitoring only
+    │  Management & monitoring, live activity, threat inspection
     │  Authenticated REST API / WebSocket
     │
     ▼
 AGENTSHIELD BACKEND (FastAPI)
-    ├── API Layer             — Request routing and validation
-    ├── Identity & Tenant     — Agent registration, auth [Phase 2+]
-    ├── Security Core         — Policy + risk + threat [Phase 3+]
-    ├── Policy Engine         — Rule evaluation [Phase 3+]
-    ├── Threat Detection      — Anomaly detection [Phase 3+]
-    ├── Risk Engine           — Risk scoring [Phase 3+]
-    ├── Approval Management   — Human approval workflows [Phase 4+]
-    ├── Execution Gateway     — Authorized tool invocation [Phase 4+]
-    └── Audit & Monitoring    — Tamper-evident logs [Phase 2+]
+    ├── API Layer             — Request routing, validation, auth
+    ├── Identity & Tenant     — Agent registration, Argon2 & JWT auth
+    ├── Security Core         — Independent decision engine (ALLOW / BLOCK / ASK_HUMAN)
+    ├── Policy Engine         — Rule evaluation, domain policies, precedence
+    ├── Threat Detection      — Modular detectors (Prompt injection, Data leakage, FS, CMD, Net, Behavioral)
+    ├── Threat Correlation    — Synthesizes multi-stage attack chains (0-100 score)
+    ├── Risk Engine           — Deterministic 0-100 scoring with explainable factors
+    ├── Approval Management   — Human approval workflows (SHA256 bound)
+    ├── Audit & Monitoring    — Activity event persistence & real-time WebSockets
     │
     ▼
-AGENTSHIELD INTEGRATION LAYER
-    ├── SDK/API Adapters      — Per-framework adapters [Phase 4+]
-    ├── MCP Proxy             — MCP transparent proxy [Phase 5+]
-    └── Custom Agent Adapter  — Direct SDK integration [Phase 4+]
+AGENTSHIELD INTEGRATION LAYER [Phase 6+]
+    ├── SDK/API Adapters      — Per-framework adapters (OpenAI, Claude, LangGraph)
+    ├── MCP Gateway           — Transparent Model Context Protocol proxy
+    └── Controlled Execution  — Boundary execution of authorized tools
     │
     ▼
 AI AGENTS & CONTROLLED TOOLS

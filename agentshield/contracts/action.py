@@ -266,6 +266,14 @@ class ActionRequest(BaseModel):
         ),
     ]
 
+    provenance_context: Annotated[
+        Any | None,
+        Field(
+            default=None,
+            description="Structured provenance context tracking instruction and data origin (Phase 5).",
+        ),
+    ]
+
     # ------------------------------------------------------------------
     # Timing
     # ------------------------------------------------------------------

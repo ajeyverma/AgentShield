@@ -1,6 +1,6 @@
 # AgentShield AI — System Architecture
 
-> **Phase 8 Complete** — Foundation, PySide6 Desktop UI, Backend & Database, Core Security Engine, Advanced Threat Detection Engine, Controlled Tool Execution Gateway, OpenAI Agents SDK Integration, and MCP Firewall Gateway are fully implemented.
+> **Phase 9 Complete** — Foundation, PySide6 Desktop UI, Backend & Database, Core Security Engine, Advanced Threat Detection Engine, Controlled Tool Execution Gateway, OpenAI Agents SDK Integration, MCP Firewall Gateway, and Multi-Framework AI Agent Integrations (Claude Agent SDK, LangGraph, CrewAI, Google ADK) are fully implemented.
 
 ---
 
@@ -13,7 +13,7 @@ USER / ADMIN
     │
     ▼
 AGENTSHIELD DESKTOP APPLICATION (PySide6)
-    │  Management & monitoring, live activity, threat inspection, MCP Gateway, human approval
+    │  Management & monitoring, live activity, threat inspection, MCP Gateway, multi-framework status, human approval
     │  Authenticated REST API / WebSocket
     │
     ▼
@@ -36,10 +36,14 @@ AGENTSHIELD CONTROLLED EXECUTION GATEWAY [Phase 6]
     └── Controlled Adapters   — Server-side adapters (calculator, sandbox_fs, mock_email, mock_http)
     │
     ▼
-AGENTSHIELD INTEGRATIONS & PROTOCOL GATEWAYS [Phase 7 & 8]
+AGENTSHIELD INTEGRATIONS & PROTOCOL GATEWAYS [Phases 7, 8, 9]
+    ├── Core Shared SDK       — Universal BaseToolWrapper, AgentIdentity, execution client, conformance suite [Phase 9]
     ├── OpenAI Agents SDK     — Intercepted tool wrappers, allowlists, fail-closed [Phase 7]
     ├── MCP Firewall Gateway  — Protocol mediation, discovery namespacing, SSRF & STDIO shields [Phase 8]
-    └── Future Framework SDKs — Claude, LangGraph, CrewAI adapters [Phase 9+]
+    ├── Claude Agent SDK      — Tool use API hooks, Anthropic tool schemas, approval pause [Phase 9]
+    ├── LangGraph             — AgentShieldToolNode, state graph workflow interruption [Phase 9]
+    ├── CrewAI                — Hierarchical multi-agent crews, least-privilege delegation [Phase 9]
+    └── Google ADK            — Google GenAI FunctionDeclaration & turn mediation [Phase 9]
 ```
 
 ---

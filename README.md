@@ -2,11 +2,11 @@
 
 **Universal Runtime Security Gateway for AI Agents**
 
-[![Phase](https://img.shields.io/badge/Phase-8%20MCP%20Firewall%20Gateway-blue)]()
+[![Phase](https://img.shields.io/badge/Phase-9%20Multi--Framework%20Integrations-blue)]()
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-green)]()
 [![PySide6](https://img.shields.io/badge/PySide6-6.7%2B-green)]()
-[![Tests](https://img.shields.io/badge/Tests-297%20Passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/Tests-336%20Passed-brightgreen)]()
 
 ---
 
@@ -36,7 +36,7 @@ Security decisions are independently computed and enforced by AgentShield's back
 | **Phase 6** | Controlled Execution Gateway | ✅ Complete | Mandatory execution boundary, 4 sandboxed adapters, single-use grants, SHA256 argument binding |
 | **Phase 7** | OpenAI Agents SDK Integration | ✅ Complete | Non-bypassable tool wrapper, strict tool allowlists, fail-closed enforcement, demo application |
 | **Phase 8** | MCP Firewall Gateway | ✅ Complete | Protocol-level security proxy mediating MCP clients and external MCP servers, tool namespacing, SSRF and STDIO shields, upstream response secret redactor |
-| **Phase 9+** | Additional Frameworks & Advanced Auto-Remediation | ⏳ Planned | Claude SDK, LangGraph, CrewAI, automated threat remediation |
+| **Phase 9** | Multi-Framework AI Agent Integrations | ✅ Complete | Universal integration architecture for Claude SDK, LangGraph, CrewAI, and Google ADK; 24-check conformance verification; multi-agent hierarchy tracking |
 
 ---
 

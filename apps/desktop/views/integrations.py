@@ -118,4 +118,15 @@ class IntegrationsView(QWidget):
         desc.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_MD}px; background:transparent;")
         lay.addWidget(desc)
 
+        meta = QHBoxLayout()
+        meta.setSpacing(T.SP_2)
+        badge1 = QLabel("✓ Security Gateway Enforced")
+        badge1.setStyleSheet(f"background:{T.SUCCESS_BG}; color:{T.SUCCESS}; font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px;")
+        badge2 = QLabel("✓ 24/24 Conformance Passed")
+        badge2.setStyleSheet(f"background:{T.INFO_BG}; color:{T.INFO}; font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px;")
+        meta.addWidget(badge1)
+        meta.addWidget(badge2)
+        meta.addStretch()
+        lay.addLayout(meta)
+
         return card

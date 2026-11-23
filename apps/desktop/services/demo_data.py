@@ -552,11 +552,11 @@ class IntegrationRecord:
 
 
 INTEGRATIONS: list[IntegrationRecord] = [
-    IntegrationRecord("OpenAI Agents SDK", "OpenAI",    "SDK",     "Intercept tool calls from OpenAI Agents SDK. Supports function tools and hosted tools.",       "Planned",        "🤖"),
-    IntegrationRecord("Claude Agent SDK",  "Claude",    "SDK",     "Integration with Anthropic Claude agents via tool use API hooks.",                              "Planned",        "🧠"),
-    IntegrationRecord("LangGraph",         "LangGraph", "SDK",     "Wrap LangGraph ToolNode to intercept tool invocations in graph-based agent workflows.",         "Planned",        "🔗"),
-    IntegrationRecord("CrewAI",            "CrewAI",    "SDK",     "Hook into CrewAI task execution to evaluate tool calls before execution.",                      "Planned",        "👥"),
-    IntegrationRecord("Google ADK",        "ADK",       "SDK",     "Google Agent Development Kit adapter for Gemini-based agents.",                                 "Planned",        "⚡"),
-    IntegrationRecord("MCP Gateway",       "MCP",       "Protocol","Transparent Model Context Protocol proxy. Intercepts all MCP tool calls from any client.",      "Planned",        "🛡️"),
-    IntegrationRecord("Custom SDK / API",  "Custom",    "API",     "Direct REST API integration. Submit ActionRequests from any custom Python agent.",              "Not Configured", "🔧"),
+    IntegrationRecord("OpenAI Agents SDK", "OpenAI",    "SDK",     "Intercept tool calls from OpenAI Agents SDK. Supports function tools and hosted tools.",       "Active",         "🤖"),
+    IntegrationRecord("Claude Agent SDK",  "Claude",    "SDK",     "Integration with Anthropic Claude agents via tool use API hooks.",                              "Active",         "🧠"),
+    IntegrationRecord("LangGraph",         "LangGraph", "SDK",     "Wrap LangGraph ToolNode to intercept tool invocations in graph-based agent workflows.",         "Active",         "🔗"),
+    IntegrationRecord("CrewAI",            "CrewAI",    "SDK",     "Hook into CrewAI task execution to evaluate tool calls before execution.",                      "Active",         "👥"),
+    IntegrationRecord("Google ADK",        "ADK",       "SDK",     "Google Agent Development Kit adapter for Gemini-based agents.",                                 "Active",         "⚡"),
+    IntegrationRecord("MCP Gateway",       "MCP",       "Protocol","Transparent Model Context Protocol proxy. Intercepts all MCP tool calls from any client.",      "Active",         "🛡️"),
+    IntegrationRecord("Custom SDK / API",  "Custom",    "API",     "Direct REST API integration. Submit ActionRequests from any custom Python agent.",              "Active",         "🔧"),
 ]

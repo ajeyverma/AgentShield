@@ -1,6 +1,6 @@
 # AgentShield AI — System Architecture
 
-> **Phase 5 Complete** — Foundation, PySide6 Desktop UI, Backend & Database, Core Security Engine, and Advanced Threat Detection Engine are fully implemented.
+> **Phase 6 Complete** — Foundation, PySide6 Desktop UI, Backend & Database, Core Security Engine, Advanced Threat Detection Engine, and Controlled Tool Execution Gateway are fully implemented.
 
 ---
 
@@ -13,7 +13,7 @@ USER / ADMIN
     │
     ▼
 AGENTSHIELD DESKTOP APPLICATION (PySide6)
-    │  Management & monitoring, live activity, threat inspection
+    │  Management & monitoring, live activity, threat inspection, human approval
     │  Authenticated REST API / WebSocket
     │
     ▼
@@ -29,19 +29,16 @@ AGENTSHIELD BACKEND (FastAPI)
     ├── Audit & Monitoring    — Activity event persistence & real-time WebSockets
     │
     ▼
-AGENTSHIELD INTEGRATION LAYER [Phase 6+]
-    ├── SDK/API Adapters      — Per-framework adapters (OpenAI, Claude, LangGraph)
-    ├── MCP Gateway           — Transparent Model Context Protocol proxy
-    └── Controlled Execution  — Boundary execution of authorized tools
+AGENTSHIELD CONTROLLED EXECUTION GATEWAY [Phase 6]
+    ├── Tool Registry         — Tool definitions, schemas, timeouts, output limits
+    ├── Execution Auth Mgr    — Single-use, short-lived grants bound to SHA256 argument hash
+    ├── Idempotency Engine    — Duplicate request deduplication and conflict detection
+    └── Controlled Adapters   — Server-side adapters (calculator, sandbox_fs, mock_email, mock_http)
     │
     ▼
-AI AGENTS & CONTROLLED TOOLS
-    ├── OpenAI Agents, Claude, LangGraph, CrewAI, Google ADK
-    └── Custom Python agents
-    │
-    ▼
-PROTECTED RESOURCES
-    └── Files, Email, Browser, Terminal, Databases, External APIs
+INTEGRATIONS & PROXIES [Phase 7+]
+    ├── Framework SDKs        — OpenAI, Claude, LangGraph, CrewAI adapters
+    └── Transparent MCP Proxy — Model Context Protocol proxy gateway
 ```
 
 ---

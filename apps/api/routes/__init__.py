@@ -9,12 +9,14 @@ from apps.api.routes import (
     audit_logs,
     auth,
     dashboard,
+    executions,
     health,
     integrations,
     policies,
     security,
     threat_detection,
     threats,
+    tools,
     users,
     websocket,
 )
@@ -34,4 +36,6 @@ __all__ = [
     "audit_logs",
     "integrations",
     "websocket",
+    "executions",
+    "tools",
 ]

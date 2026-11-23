@@ -186,10 +186,29 @@ class PolicyEngine:
         #   "outcome": "BLOCK" | "ASK_HUMAN" | "ALLOW",
         #   "reason": "..."
         # }
-        tools = rules_data.get("tools", ["*"])
-        ops = rules_data.get("operations", ["*"])
-        resources = rules_data.get("resources", ["*"])
-        outcome_str = rules_data.get("outcome", "BLOCK").upper()
+        tools = rules_data.get("tools")
+        ops = rules_data.get("operations")
+        resources = rules_data.get("resources")
+
+        # Support nested "match" dictionary format as well
+        match_dict = rules_data.get("match")
+        if isinstance(match_dict, dict):
+            if tools is None and "tool" in match_dict:
+                tools = [match_dict["tool"]]
+            if ops is None and "operation" in match_dict:
+                ops = [match_dict["operation"]]
+            if resources is None and "resource" in match_dict:
+                resources = [match_dict["resource"]]
+
+        if tools is None:
+            tools = ["*"]
+        if ops is None:
+            ops = ["*"]
+        if resources is None:
+            resources = ["*"]
+
+        raw_outcome = rules_data.get("outcome") or rules_data.get("action") or "BLOCK"
+        outcome_str = str(raw_outcome).upper()
         reason = rules_data.get("reason", f"Action triggered policy '{policy.name}'.")
 
         tool_matched = _match_pattern(request.tool_name, tools)

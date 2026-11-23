@@ -463,6 +463,142 @@ class BackendClient:
             logger.warning("Failed to fetch detectors: %s", exc)
             return None
 
+    # ── Controlled Execution Gateway (Phase 6) ──────────────────────────────
+
+    def execute_tool(
+        self,
+        agent_id: str,
+        tool_name: str,
+        action_name: str,
+        arguments: dict[str, Any],
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Submit a tool execution through the Controlled Execution Gateway."""
+        try:
+            payload = {
+                "agent_id": agent_id,
+                "tool_name": tool_name,
+                "action_name": action_name,
+                "arguments": arguments,
+                "idempotency_key": idempotency_key,
+            }
+            resp = self._client.post(
+                f"{self.api_prefix}/executions",
+                json=payload,
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Tool execution request failed: %s", exc)
+            return None
+
+    def list_executions(
+        self,
+        agent_id: str | None = None,
+        tool_name: str | None = None,
+        status: str | None = None,
+        decision: str | None = None,
+        page: int = 1,
+        size: int = 20,
+    ) -> dict[str, Any] | None:
+        """Fetch historical tool execution records."""
+        try:
+            params = [f"page={page}", f"size={size}"]
+            if agent_id:
+                params.append(f"agent_id={agent_id}")
+            if tool_name:
+                params.append(f"tool_name={tool_name}")
+            if status:
+                params.append(f"status={status}")
+            if decision:
+                params.append(f"decision={decision}")
+            qs = "&".join(params)
+            resp = self._client.get(
+                f"{self.api_prefix}/executions?{qs}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch executions: %s", exc)
+            return None
+
+    def get_execution(self, execution_id: str) -> dict[str, Any] | None:
+        """Fetch details of a single execution."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/executions/{execution_id}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to fetch execution %s: %s", execution_id, exc)
+            return None
+
+    def approve_execution(self, execution_id: str, notes: str | None = None) -> dict[str, Any] | None:
+        """Approve a pending tool execution using human supervisor credentials."""
+        try:
+            payload = {"approval_notes": notes} if notes else {}
+            resp = self._client.post(
+                f"{self.api_prefix}/executions/{execution_id}/approve",
+                json=payload,
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to approve execution %s: %s", execution_id, exc)
+            return None
+
+    def cancel_execution(self, execution_id: str) -> dict[str, Any] | None:
+        """Cancel a pending tool execution."""
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/executions/{execution_id}/cancel",
+                json={},
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to cancel execution %s: %s", execution_id, exc)
+            return None
+
+    def list_tools(self) -> list[dict[str, Any]] | None:
+        """List registered tools from the Controlled Tool Registry."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/tools",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to list tools: %s", exc)
+            return None
+
+    def get_tool(self, tool_name: str) -> dict[str, Any] | None:
+        """Get tool definition metadata."""
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/tools/{tool_name}",
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return None
+        except Exception as exc:
+            logger.warning("Failed to get tool %s: %s", tool_name, exc)
+            return None
+
     # ── WebSocket URL ────────────────────────────────────────────────────────
 
     def get_websocket_url(self) -> str:

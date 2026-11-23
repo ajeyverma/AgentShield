@@ -2,11 +2,11 @@
 
 **Universal Runtime Security Gateway for AI Agents**
 
-[![Phase](https://img.shields.io/badge/Phase-4%20Core%20Security%20Engine-blue)]()
+[![Phase](https://img.shields.io/badge/Phase-6%20Controlled%20Execution%20Gateway-blue)]()
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-green)]()
 [![PySide6](https://img.shields.io/badge/PySide6-6.7%2B-green)]()
-[![Tests](https://img.shields.io/badge/Tests-161%20Passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/Tests-242%20Passed-brightgreen)]()
 
 ---
 
@@ -33,7 +33,8 @@ Security decisions are independently computed and enforced by AgentShield's back
 | **Phase 3** | Backend & Database | ✅ Complete | FastAPI REST APIs, SQLAlchemy 2.0 ORM, Alembic migrations, Argon2 & JWT auth, real-time WebSockets |
 | **Phase 4** | Core Security Engine | ✅ Complete | Deterministic decision engine, domain rules, permission engine, risk scoring (0-100), policy conflict resolution |
 | **Phase 5** | Threat Detection Engine | ✅ Complete | Modular detectors (Prompt Injection, Data Leakage, Filesystem, Commands, Network, Behavioral), Correlation Engine |
-| **Phase 6+** | Integrations & Execution Gateway | ⏳ Planned | SDK adapters, MCP gateway, controlled execution |
+| **Phase 6** | Controlled Execution Gateway | ✅ Complete | Mandatory execution boundary, 4 sandboxed adapters, single-use grants, SHA256 argument binding |
+| **Phase 7+** | Framework & MCP Adapters | ⏳ Planned | SDK adapters (OpenAI, Claude, LangGraph), transparent MCP proxy gateway |
 
 ---
 

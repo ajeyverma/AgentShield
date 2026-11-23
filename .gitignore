@@ -38,7 +38,8 @@ virtualenv/
 .Python
 
 # ---------------------------------------------------------------------------
-# Environment files  ← NEVER commit secrets
+# AgentShield runtime directories
+.sandbox_workspace/
 # ---------------------------------------------------------------------------
 .env
 .env.*

@@ -11,6 +11,14 @@ from agentshield.contracts.enums import (
     RiskLevel,
     ToolCategory,
 )
+from agentshield.contracts.execution import (
+    ExecutionApprovalRequest,
+    ExecutionAuthorizationGrant,
+    ExecutionRequest,
+    ToolExecutionResponse,
+    ToolMetadataResponse,
+)
+from agentshield.contracts.execution_enums import ExecutionStatus
 from agentshield.contracts.provenance import (
     ProvenanceContext,
     ProvenanceRecord,
@@ -50,4 +58,10 @@ __all__ = [
     "FindingStatus",
     "CorrelatedThreat",
     "ThreatAnalysisResult",
+    "ExecutionRequest",
+    "ExecutionAuthorizationGrant",
+    "ToolExecutionResponse",
+    "ExecutionApprovalRequest",
+    "ToolMetadataResponse",
+    "ExecutionStatus",
 ]

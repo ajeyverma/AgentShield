@@ -60,10 +60,15 @@ class BehavioralAnomalyDetector(BaseDetector):
         now = datetime.now(UTC)
         one_min_ago = now - timedelta(minutes=1)
 
+        def _ensure_utc(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=UTC)
+            return dt.astimezone(UTC)
+
         # 1. Burst Frequency Check (>30 req/min)
         recent_count = sum(
             1 for h in agent_history
-            if h.get("created_at") and isinstance(h.get("created_at"), datetime) and h["created_at"] >= one_min_ago
+            if h.get("created_at") and isinstance(h.get("created_at"), datetime) and _ensure_utc(h["created_at"]) >= one_min_ago
         )
         if recent_count >= MAX_REQUESTS_PER_MINUTE:
             findings.append(

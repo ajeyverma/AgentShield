@@ -9,14 +9,14 @@ from fastapi import APIRouter, HTTPException, status
 from agentshield.contracts.execution import ToolMetadataResponse
 from agentshield.execution.exceptions import ToolNotFoundError
 from agentshield.execution.registry import tool_registry
-from apps.api.dependencies import CurrentUser
+from apps.api.dependencies import CallerIdentity
 
 router = APIRouter(prefix="/tools", tags=["Tool Registry"])
 
 
 @router.get("", response_model=list[ToolMetadataResponse])
 async def list_registered_tools(
-    user: CurrentUser,
+    caller: CallerIdentity,
 ) -> list[ToolMetadataResponse]:
     """List all registered tools, schemas, supported actions, and operational status."""
     tools = tool_registry.list_all()
@@ -26,7 +26,7 @@ async def list_registered_tools(
 @router.get("/{tool_name}", response_model=ToolMetadataResponse)
 async def get_tool_metadata(
     tool_name: str,
-    user: CurrentUser,
+    caller: CallerIdentity,
 ) -> ToolMetadataResponse:
     """Get metadata and action schemas for a specific tool."""
     try:

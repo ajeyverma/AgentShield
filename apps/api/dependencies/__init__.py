@@ -139,3 +139,77 @@ async def get_authenticated_agent(
 
 AuthenticatedAgent = Annotated[Agent, Depends(get_authenticated_agent)]
 
+
+# ---------------------------------------------------------------------------
+# Universal Caller Identity (User or Agent)
+# ---------------------------------------------------------------------------
+
+
+class CallerContext:
+    """Authenticated caller identity, either human user or AI agent."""
+
+    def __init__(self, user_id: str, agent: Agent | None = None, is_agent: bool = False) -> None:
+        self.user_id = user_id
+        self.agent = agent
+        self.is_agent = is_agent
+
+
+async def get_caller_identity(
+    session: DbSession,
+    x_agent_credential: Annotated[str | None, Header(alias="X-Agent-Credential")] = None,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security_bearer)] = None,
+) -> CallerContext:
+    """Authenticate caller as either a human User (via JWT) or an AI Agent (via credential)."""
+    # 1. Check explicit X-Agent-Credential header
+    if x_agent_credential:
+        agent_service = AgentService(session)
+        try:
+            agent_resp = await agent_service.authenticate_agent(x_agent_credential)
+            agent = await agent_service.repo.get_by_id(agent_resp.id)
+            if not agent or agent.status != "active":
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Agent inactive or not found.")
+            return CallerContext(user_id=agent.owner_user_id, agent=agent, is_agent=True)
+        except AuthenticationError as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc.message)) from exc
+
+    # 2. Check Bearer token
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide Bearer token or X-Agent-Credential header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = credentials.credentials
+    # Try decoding as user JWT first
+    try:
+        payload = decode_access_token(token)
+        user_id = payload.get("sub")
+        if user_id:
+            user_service = UserService(session)
+            user = await user_service.repo.get_by_id(user_id)
+            if user and user.is_active:
+                return CallerContext(user_id=user.id, agent=None, is_agent=False)
+    except Exception:
+        pass
+
+    # If not a user JWT, check if it's an agent credential passed as Bearer token
+    agent_service = AgentService(session)
+    try:
+        agent_resp = await agent_service.authenticate_agent(token)
+        agent = await agent_service.repo.get_by_id(agent_resp.id)
+        if agent and agent.status == "active":
+            return CallerContext(user_id=agent.owner_user_id, agent=agent, is_agent=True)
+    except Exception:
+        pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid access token or agent credentials.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+CallerIdentity = Annotated[CallerContext, Depends(get_caller_identity)]
+
+

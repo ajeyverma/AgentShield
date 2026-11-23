@@ -22,7 +22,7 @@ from agentshield.execution.exceptions import (
 from agentshield.identity.service import AgentService
 from agentshield.services.execution_service import ExecutionService
 from agentshield.services.schemas import PaginatedResponse
-from apps.api.dependencies import CurrentUser, DbSession
+from apps.api.dependencies import CallerIdentity, CurrentUser, DbSession
 
 router = APIRouter(prefix="/executions", tags=["Controlled Executions"])
 
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/executions", tags=["Controlled Executions"])
 @router.post("", response_model=ToolExecutionResponse, status_code=status.HTTP_200_OK)
 async def submit_execution(
     payload: ExecutionRequest,
-    user: CurrentUser,
+    caller: CallerIdentity,
     db: DbSession,
 ) -> ToolExecutionResponse:
     """Submit a tool execution request through the Controlled Execution Gateway.
@@ -38,24 +38,36 @@ async def submit_execution(
     Mandatory authorization flow: Agent Auth -> Validation -> Threat Analysis ->
     Phase 4 Security Evaluation -> Authorization Grant -> Adapter Execution.
     """
-    # Verify agent ownership
     agent_id = str(payload.agent_id)
     agent_service = AgentService(db)
-    try:
-        agent = await agent_service.get_agent(agent_id, user.id)
-    except AuthorizationError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent '{agent_id}' not found or access denied.",
-        )
+
+    if caller.is_agent:
+        # Caller is the authenticated agent: prevent spoofing
+        if caller.agent is None or caller.agent.id != agent_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Authenticated agent cannot impersonate agent '{agent_id}'.",
+            )
+        agent = caller.agent
+        user_id = caller.user_id
+    else:
+        # Caller is human user: verify agent ownership
+        try:
+            agent = await agent_service.get_agent(agent_id, caller.user_id)
+        except AuthorizationError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Agent '{agent_id}' not found or access denied.",
+            )
+        user_id = caller.user_id
 
     # Attach verified user identity
-    payload.user_id = user.id
+    payload.user_id = user_id
 
     service = ExecutionService(db)
     try:
         return await service.execute_request(
-            user_id=user.id,
+            user_id=user_id,
             agent=agent,
             request=payload,
         )

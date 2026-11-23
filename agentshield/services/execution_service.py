@@ -87,6 +87,43 @@ class ExecutionService:
             arguments=request.arguments,
         )
 
+        # 2.5 Emergency Controls Check (Phase 10)
+        from agentshield.services.emergency_service import EmergencyControlService
+        emergency_svc = EmergencyControlService(self.session)
+        is_emg_blocked, emg_reason = await emergency_svc.check_is_blocked(
+            user_id=user_id,
+            agent_id=agent.id,
+            tool_name=request.tool_name,
+            integration_type=getattr(request, "integration_type", "api") or "api",
+        )
+        if is_emg_blocked:
+            exec_id = str(uuid.uuid4())
+            model = ToolExecutionModel(
+                id=exec_id,
+                request_id=str(request.request_id),
+                user_id=user_id,
+                agent_id=agent.id,
+                tool_name=request.tool_name,
+                action_name=request.action_name,
+                canonical_argument_hash=request.canonical_argument_hash,
+                arguments_json=json.dumps(request.arguments) if request.arguments is not None else None,
+                idempotency_key=request.idempotency_key,
+                decision="BLOCK",
+                status=ExecutionStatus.BLOCKED.value,
+                error_code="EMERGENCY_LOCKDOWN",
+                error_message=emg_reason,
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
+            )
+            self.session.add(model)
+            await self.session.commit()
+            await broadcaster.broadcast_event(
+                user_id,
+                "execution.blocked",
+                {"execution_id": model.id, "tool_name": request.tool_name, "action_name": request.action_name, "reason": emg_reason},
+            )
+            return self._model_to_response(model)
+
         # 3. Create initial execution record
         exec_id = str(uuid.uuid4())
         model = ToolExecutionModel(
@@ -195,16 +232,27 @@ class ExecutionService:
             model.status = ExecutionStatus.PENDING_APPROVAL.value
             model.approval_id = approval_id
 
-            # Create ApprovalRequest record
+            # Create ApprovalRequest record (Phase 10 enriched)
             now_utc = datetime.now(UTC)
             approval = ApprovalRequest(
                 id=approval_id,
                 user_id=user_id,
                 agent_id=agent.id,
                 request_id=str(request.request_id),
+                execution_id=model.id,
+                tenant_id=user_id,
+                integration_type=getattr(request, "integration_type", "API") or "API",
+                resource=str(request.arguments.get("path") or request.arguments.get("endpoint") or "") if request.arguments else "",
+                risk_score=float(decision.risk_score) if hasattr(decision, "risk_score") else 50.0,
+                threat_findings_json=json.dumps(
+                    [tf.model_dump() if hasattr(tf, "model_dump") else str(tf) for tf in threat_result.findings],
+                    default=str,
+                ) if threat_result.findings else None,
                 tool_name=request.tool_name,
                 operation=request.action_name,
                 risk_level=decision.risk_level.value,
+                canonical_argument_hash=request.canonical_argument_hash,
+                arguments_json=json.dumps(request.arguments) if request.arguments is not None else None,
                 description=f"Tool execution requires approval. Argument hash: {request.canonical_argument_hash[:16]}...",
                 status="pending",
                 created_at=now_utc,
@@ -212,6 +260,22 @@ class ExecutionService:
             )
             self.session.add(approval)
             await self.session.commit()
+
+            from agentshield.security.sanitization import redact_secrets
+            await broadcaster.broadcast_event(
+                user_id,
+                "approval.requested",
+                {
+                    "approval_id": approval_id,
+                    "execution_id": model.id,
+                    "tool_name": request.tool_name,
+                    "operation": request.action_name,
+                    "risk_level": decision.risk_level.value,
+                    "risk_score": float(decision.risk_score) if hasattr(decision, "risk_score") else 50.0,
+                    "arguments": redact_secrets(request.arguments),
+                    "expires_at": approval.expires_at.isoformat() if approval.expires_at else None,
+                },
+            )
 
             await broadcaster.broadcast_event(
                 user_id,
@@ -310,6 +374,17 @@ class ExecutionService:
                     await self.session.commit()
                     raise ApprovalVerificationError("Approval window has expired.")
                 appr.status = "approved"
+
+        # Check emergency control before executing approved action
+        from agentshield.services.emergency_service import EmergencyControlService
+        emergency_svc = EmergencyControlService(self.session)
+        is_emg_blocked, emg_reason = await emergency_svc.check_is_blocked(
+            user_id=user_id,
+            agent_id=model.agent_id,
+            tool_name=model.tool_name,
+        )
+        if is_emg_blocked:
+            raise ApprovalVerificationError(f"Execution halted by emergency control: {emg_reason}")
 
         # Re-fetch tool
         tool_def = tool_registry.get(model.tool_name)

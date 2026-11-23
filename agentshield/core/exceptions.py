@@ -39,6 +39,10 @@ class ContractValidationError(AgentShieldError):
     """Raised when an action request fails schema or semantic validation."""
 
 
+class ValidationError(AgentShieldError):
+    """Raised when request payload or parameters fail validation."""
+
+
 # ---------------------------------------------------------------------------
 # Security / policy errors
 # ---------------------------------------------------------------------------

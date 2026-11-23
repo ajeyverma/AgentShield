@@ -211,11 +211,17 @@ class BackendClient:
 
     # ── Approvals ────────────────────────────────────────────────────────────
 
-    def get_approvals(self) -> list[dict[str, Any]] | None:
+    def get_approvals(self, status: str | None = None, search: str | None = None, page: int = 1, size: int = 50) -> list[dict[str, Any]] | None:
         try:
+            params: dict[str, Any] = {"page": page, "size": size}
+            if status:
+                params["status"] = status
+            if search:
+                params["search"] = search
             resp = self._client.get(
                 f"{self.api_prefix}/approvals",
                 headers=self._headers(),
+                params=params,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -223,6 +229,64 @@ class BackendClient:
             return None
         except Exception as exc:
             logger.warning("Failed to fetch approvals: %s", exc)
+            return None
+
+    def get_approval_detail(self, approval_id: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/approvals/{approval_id}",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get approval detail: %s", exc)
+            return None
+
+    def approve_request(self, approval_id: str, comment: str | None = None) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/approvals/{approval_id}/approve",
+                headers=self._headers(),
+                json={"comment": comment},
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to approve request: %s", exc)
+            return None
+
+    def reject_request(self, approval_id: str, reason: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/approvals/{approval_id}/reject",
+                headers=self._headers(),
+                json={"reason": reason},
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to reject request: %s", exc)
+            return None
+
+    def cancel_approval_request(self, approval_id: str, reason: str | None = None) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/approvals/{approval_id}/cancel",
+                headers=self._headers(),
+                json={"reason": reason},
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to cancel approval request: %s", exc)
+            return None
+
+    def get_approval_history(self, approval_id: str) -> list[dict[str, Any]] | None:
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/approvals/{approval_id}/history",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get approval history: %s", exc)
             return None
 
     def update_approval(self, approval_id: str, status: str) -> dict[str, Any] | None:
@@ -241,11 +305,17 @@ class BackendClient:
 
     # ── Policies ─────────────────────────────────────────────────────────────
 
-    def get_policies(self) -> list[dict[str, Any]] | None:
+    def get_policies(self, category: str | None = None, is_enabled: bool | None = None) -> list[dict[str, Any]] | None:
         try:
+            params = {}
+            if category:
+                params["category"] = category
+            if is_enabled is not None:
+                params["is_enabled"] = is_enabled
             resp = self._client.get(
                 f"{self.api_prefix}/policies",
                 headers=self._headers(),
+                params=params,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -253,6 +323,161 @@ class BackendClient:
             return None
         except Exception as exc:
             logger.warning("Failed to fetch policies: %s", exc)
+            return None
+
+    def create_policy(self, data: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/policies",
+                headers=self._headers(),
+                json=data,
+            )
+            return resp.json() if resp.status_code == 201 else None
+        except Exception as exc:
+            logger.warning("Failed to create policy: %s", exc)
+            return None
+
+    def update_policy(self, policy_id: str, data: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            resp = self._client.patch(
+                f"{self.api_prefix}/policies/{policy_id}",
+                headers=self._headers(),
+                json=data,
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to update policy: %s", exc)
+            return None
+
+    def enable_policy(self, policy_id: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/policies/{policy_id}/enable",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to enable policy: %s", exc)
+            return None
+
+    def disable_policy(self, policy_id: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/policies/{policy_id}/disable",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to disable policy: %s", exc)
+            return None
+
+    def duplicate_policy(self, policy_id: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/policies/{policy_id}/duplicate",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 201 else None
+        except Exception as exc:
+            logger.warning("Failed to duplicate policy: %s", exc)
+            return None
+
+    def delete_policy(self, policy_id: str) -> bool:
+        try:
+            resp = self._client.delete(
+                f"{self.api_prefix}/policies/{policy_id}",
+                headers=self._headers(),
+            )
+            return resp.status_code == 204
+        except Exception as exc:
+            logger.warning("Failed to delete policy: %s", exc)
+            return False
+
+    def get_policy_history(self, policy_id: str) -> list[dict[str, Any]] | None:
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/policies/{policy_id}/history",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get policy history: %s", exc)
+            return None
+
+    def get_policy_conflicts(self) -> list[dict[str, Any]] | None:
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/policies/conflicts",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get policy conflicts: %s", exc)
+            return None
+
+    def simulate_policy(self, sim_data: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/policies/simulate",
+                headers=self._headers(),
+                json=sim_data,
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to simulate policy: %s", exc)
+            return None
+
+    # ── Emergency Security Controls (Phase 10) ───────────────────────────────
+
+    def get_emergency_status(self) -> dict[str, Any] | None:
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/security/emergency-status",
+                headers=self._headers(),
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to get emergency status: %s", exc)
+            return None
+
+    def list_emergency_controls(self, active_only: bool = False) -> list[dict[str, Any]] | None:
+        try:
+            resp = self._client.get(
+                f"{self.api_prefix}/security/emergency-controls",
+                headers=self._headers(),
+                params={"active_only": active_only},
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to list emergency controls: %s", exc)
+            return None
+
+    def activate_emergency_control(self, control_type: str, target_identifier: str, reason: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/security/emergency-controls",
+                headers=self._headers(),
+                json={
+                    "control_type": control_type,
+                    "target_identifier": target_identifier,
+                    "reason": reason,
+                },
+            )
+            return resp.json() if resp.status_code == 201 else None
+        except Exception as exc:
+            logger.warning("Failed to activate emergency control: %s", exc)
+            return None
+
+    def revoke_emergency_control(self, control_id: str, reason: str = "Revoked by admin") -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/security/emergency-controls/{control_id}/revoke",
+                headers=self._headers(),
+                json={"reason": reason},
+            )
+            return resp.json() if resp.status_code == 200 else None
+        except Exception as exc:
+            logger.warning("Failed to revoke emergency control: %s", exc)
             return None
 
     # ── Audit Logs ───────────────────────────────────────────────────────────

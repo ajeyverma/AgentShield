@@ -1,5 +1,5 @@
 """
-AgentShield AI — User Database Model.
+AgentShield AI — User Database Model (Phase 10 RBAC).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Registered application user."""
+    """Registered application user with Role-Based Access Control."""
 
     __tablename__ = "users"
 
@@ -35,6 +35,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     hashed_password: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
+    )
+    role: Mapped[str] = mapped_column(
+        String(32),
+        default="OWNER",
+        nullable=False,
+        index=True,
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,

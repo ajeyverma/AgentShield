@@ -213,3 +213,43 @@ async def get_caller_identity(
 CallerIdentity = Annotated[CallerContext, Depends(get_caller_identity)]
 
 
+# ---------------------------------------------------------------------------
+# Role & Permission Dependencies (Phase 10 RBAC)
+# ---------------------------------------------------------------------------
+
+from agentshield.security.rbac import (
+    Permission,
+    UserRole,
+    can_approve_risk,
+    has_permission,
+    parse_user_role,
+)
+
+
+def require_permission(permission: Permission):
+    """Enforce specific granular permission on authenticated human user."""
+    async def _perm_dependency(user: CurrentUser) -> User:
+        role = getattr(user, "role", "OWNER")
+        if not has_permission(role, permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: permission '{permission.value}' required for role '{role}'.",
+            )
+        return user
+    return _perm_dependency
+
+
+def require_role(*roles: UserRole):
+    """Enforce that current user possesses at least one of the required roles."""
+    async def _role_dependency(user: CurrentUser) -> User:
+        user_role = parse_user_role(getattr(user, "role", "OWNER"))
+        if user_role not in roles and not getattr(user, "is_superuser", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: role '{user_role.value}' is not authorized for this resource.",
+            )
+        return user
+    return _role_dependency
+
+
+

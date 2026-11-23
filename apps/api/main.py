@@ -24,6 +24,7 @@ from apps.api.routes import (
     audit_logs,
     auth,
     dashboard,
+    emergency,
     executions,
     health,
     integrations,
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router, prefix=settings.api_prefix)
     app.include_router(policies.router, prefix=settings.api_prefix)
     app.include_router(security.router, prefix=settings.api_prefix)
+    app.include_router(emergency.router, prefix=settings.api_prefix)
     app.include_router(audit_logs.router, prefix=settings.api_prefix)
     app.include_router(integrations.router, prefix=settings.api_prefix)
     app.include_router(mcp.router, prefix=settings.api_prefix)

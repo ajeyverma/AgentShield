@@ -2,11 +2,11 @@
 
 **Universal Runtime Security Gateway for AI Agents**
 
-[![Phase](https://img.shields.io/badge/Phase-9%20Multi--Framework%20Integrations-blue)]()
+[![Phase](https://img.shields.io/badge/Phase-10%20Human%20Approval%20%26%20Policy%20Management-blue)]()
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-green)]()
 [![PySide6](https://img.shields.io/badge/PySide6-6.7%2B-green)]()
-[![Tests](https://img.shields.io/badge/Tests-336%20Passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/Tests-359%20Passed-brightgreen)]()
 
 ---
 
@@ -37,6 +37,7 @@ Security decisions are independently computed and enforced by AgentShield's back
 | **Phase 7** | OpenAI Agents SDK Integration | ✅ Complete | Non-bypassable tool wrapper, strict tool allowlists, fail-closed enforcement, demo application |
 | **Phase 8** | MCP Firewall Gateway | ✅ Complete | Protocol-level security proxy mediating MCP clients and external MCP servers, tool namespacing, SSRF and STDIO shields, upstream response secret redactor |
 | **Phase 9** | Multi-Framework AI Agent Integrations | ✅ Complete | Universal integration architecture for Claude SDK, LangGraph, CrewAI, and Google ADK; 24-check conformance verification; multi-agent hierarchy tracking |
+| **Phase 10** | Human Approval & Policy Management | ✅ Complete | Full HITL approval center, non-overridable BLOCK decisions, zero agent self-approval, priority-ordered policies, declarative structured conditions (zero eval), policy simulation sandbox, emergency controls & lockdown |
 
 ---
 

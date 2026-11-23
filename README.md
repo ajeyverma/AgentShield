@@ -2,11 +2,11 @@
 
 **Universal Runtime Security Gateway for AI Agents**
 
-[![Phase](https://img.shields.io/badge/Phase-7%20OpenAI%20Agents%20SDK%20Integration-blue)]()
+[![Phase](https://img.shields.io/badge/Phase-8%20MCP%20Firewall%20Gateway-blue)]()
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-green)]()
 [![PySide6](https://img.shields.io/badge/PySide6-6.7%2B-green)]()
-[![Tests](https://img.shields.io/badge/Tests-260%20Passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/Tests-297%20Passed-brightgreen)]()
 
 ---
 
@@ -35,7 +35,8 @@ Security decisions are independently computed and enforced by AgentShield's back
 | **Phase 5** | Threat Detection Engine | ✅ Complete | Modular detectors (Prompt Injection, Data Leakage, Filesystem, Commands, Network, Behavioral), Correlation Engine |
 | **Phase 6** | Controlled Execution Gateway | ✅ Complete | Mandatory execution boundary, 4 sandboxed adapters, single-use grants, SHA256 argument binding |
 | **Phase 7** | OpenAI Agents SDK Integration | ✅ Complete | Non-bypassable tool wrapper, strict tool allowlists, fail-closed enforcement, demo application |
-| **Phase 8+** | Additional Frameworks & MCP Proxy | ⏳ Planned | Claude SDK, LangGraph, CrewAI, transparent MCP proxy gateway |
+| **Phase 8** | MCP Firewall Gateway | ✅ Complete | Protocol-level security proxy mediating MCP clients and external MCP servers, tool namespacing, SSRF and STDIO shields, upstream response secret redactor |
+| **Phase 9+** | Additional Frameworks & Advanced Auto-Remediation | ⏳ Planned | Claude SDK, LangGraph, CrewAI, automated threat remediation |
 
 ---
 

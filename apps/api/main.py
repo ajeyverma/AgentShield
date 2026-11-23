@@ -27,6 +27,7 @@ from apps.api.routes import (
     executions,
     health,
     integrations,
+    mcp,
     policies,
     security,
     threat_detection,
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(security.router, prefix=settings.api_prefix)
     app.include_router(audit_logs.router, prefix=settings.api_prefix)
     app.include_router(integrations.router, prefix=settings.api_prefix)
+    app.include_router(mcp.router, prefix=settings.api_prefix)
     app.include_router(websocket.router, prefix=settings.api_prefix)
 
     return app

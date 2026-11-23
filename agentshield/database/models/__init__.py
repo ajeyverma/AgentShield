@@ -9,6 +9,7 @@ from agentshield.database.models.approval import ApprovalRequest
 from agentshield.database.models.audit_log import AuditLog
 from agentshield.database.models.execution import ToolExecutionModel
 from agentshield.database.models.integration import Integration
+from agentshield.database.models.mcp import MCPActivityModel, MCPServerModel, MCPSessionModel
 from agentshield.database.models.policy import Policy
 from agentshield.database.models.security_decision import SecurityDecisionModel
 from agentshield.database.models.threat import ThreatEvent
@@ -28,4 +29,7 @@ __all__ = [
     "AuditLog",
     "Integration",
     "ToolExecutionModel",
+    "MCPServerModel",
+    "MCPSessionModel",
+    "MCPActivityModel",
 ]

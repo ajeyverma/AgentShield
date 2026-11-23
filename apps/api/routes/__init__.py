@@ -12,6 +12,7 @@ from apps.api.routes import (
     executions,
     health,
     integrations,
+    mcp,
     policies,
     security,
     threat_detection,
@@ -38,4 +39,5 @@ __all__ = [
     "websocket",
     "executions",
     "tools",
+    "mcp",
 ]

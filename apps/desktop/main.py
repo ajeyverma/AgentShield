@@ -6,7 +6,7 @@ Run the desktop application:
 The desktop application communicates with the AgentShield backend through
 the URL configured in AGENTSHIELD_BACKEND_URL.  The backend does NOT need
 to be running for the desktop application to start — it displays a
-connection status indicator once the navigation is built in Phase 2.
+connection status indicator in the header bar.
 
 This module is intentionally thin.  All UI construction is delegated to
 MainWindow.  Error handling here catches unrecoverable startup failures
@@ -43,10 +43,10 @@ def main() -> int:
 
         # Import after QApplication creation to avoid PySide6 init ordering issues
         from apps.desktop.app.main_window import MainWindow
-        from apps.desktop.themes.tokens import LightTheme as T
+        from apps.desktop.themes.design_tokens import T  # noqa: PLC0415
 
-        # Apply global light theme stylesheet
-        app.setStyleSheet(T.global_stylesheet())
+        # Apply global light theme stylesheet (Phase 2)
+        app.setStyleSheet(T.global_qss())
 
         window = MainWindow()
         window.show()

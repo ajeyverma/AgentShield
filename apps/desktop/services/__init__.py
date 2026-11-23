@@ -1,1 +1,1 @@
-"""AgentShield AI — Desktop Services Package (Phase 2+)."""
+"""AgentShield AI — Services Package."""

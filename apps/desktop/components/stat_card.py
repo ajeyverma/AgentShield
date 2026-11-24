@@ -25,7 +25,7 @@ class StatCard(QFrame):
             f"  border:1px solid {T.BORDER};"
             f"  border-radius:{T.R_LG}px;"
             f"  border-top: 3px solid {accent_color};"
-            f"}}"
+            f"}} QLabel {{ border: none; }}"
         )
         self.setMinimumHeight(T.STAT_CARD_H)
 

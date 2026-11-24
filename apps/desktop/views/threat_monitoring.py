@@ -196,9 +196,10 @@ class ThreatMonitoringView(QWidget):
         }.get(severity, T.BORDER)
 
         card = QFrame()
+        card.setObjectName("threatCard")
         card.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-            f"border-left:4px solid {BORDER_COLOR}; border-radius:{T.R_LG}px; }}"
+            f"QFrame#threatCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+            f"border-left:4px solid {BORDER_COLOR}; border-radius:{T.R_LG}px; }} QLabel {{ border: none; }}"
         )
         lay = QHBoxLayout(card)
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)
@@ -233,9 +234,10 @@ class ThreatMonitoringView(QWidget):
         }.get(t.severity, T.BORDER)
 
         card = QFrame()
+        card.setObjectName("threatCard")
         card.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-            f"border-left:4px solid {BORDER_COLOR}; border-radius:{T.R_LG}px; }}"
+            f"QFrame#threatCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+            f"border-left:4px solid {BORDER_COLOR}; border-radius:{T.R_LG}px; }} QLabel {{ border: none; }}"
         )
         lay = QHBoxLayout(card)
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)

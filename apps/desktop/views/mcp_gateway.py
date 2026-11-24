@@ -107,8 +107,9 @@ class MCPGatewayView(QWidget):
 
     def _make_section_frame(self, title: str) -> QFrame:
         frame = QFrame()
+        frame.setObjectName("mcpCard")
         frame.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER}; border-radius:{T.R_LG}px; }}"
+            f"QFrame#mcpCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER}; border-radius:{T.R_LG}px; }} QLabel {{ border: none; }}"
         )
         lbl = QLabel(f"<b>{title}</b>")
         lbl.setStyleSheet(f"color:{T.TEXT_PRIMARY}; font-size:{T.FS_LG}px; padding: 4px; border:none;")

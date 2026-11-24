@@ -129,9 +129,10 @@ class AgentManagerView(QWidget):
 
     def _make_agent_card(self, agent: AgentRecord) -> QFrame:
         card = QFrame()
+        card.setObjectName("agentCard")
         card.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-            f"border-radius:{T.R_LG}px; }}"
+            f"QFrame#agentCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+            f"border-radius:{T.R_LG}px; }} QLabel {{ border: none; }}"
         )
         lay = QHBoxLayout(card)
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)
@@ -139,7 +140,7 @@ class AgentManagerView(QWidget):
 
         # Icon
         icon = QLabel("🤖")
-        icon.setStyleSheet("font-size:24px; background:transparent;")
+        icon.setStyleSheet("font-size:24px; background:transparent; border:none;")
         icon.setFixedWidth(36)
         lay.addWidget(icon)
 
@@ -147,9 +148,9 @@ class AgentManagerView(QWidget):
         info = QVBoxLayout()
         info.setSpacing(2)
         name_lbl = QLabel(agent.name)
-        name_lbl.setStyleSheet(f"color:{T.TEXT}; font-weight:700; font-size:{T.FS_MD}px; background:transparent;")
+        name_lbl.setStyleSheet(f"color:{T.TEXT}; font-weight:700; font-size:{T.FS_MD}px; background:transparent; border:none;")
         fw_lbl = QLabel(f"{agent.framework}  •  ID: {agent.agent_id}")
-        fw_lbl.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent;")
+        fw_lbl.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent; border:none;")
         info.addWidget(name_lbl)
         info.addWidget(fw_lbl)
         lay.addLayout(info, 2)
@@ -161,8 +162,8 @@ class AgentManagerView(QWidget):
             ("Blocked", str(agent.blocked_actions)),
         ]:
             col = QVBoxLayout(); col.setSpacing(1)
-            vl = QLabel(val); vl.setStyleSheet(f"color:{T.TEXT}; font-weight:700; font-size:{T.FS_LG}px; background:transparent;")
-            ll = QLabel(label); ll.setStyleSheet(f"color:{T.TEXT_MUTED}; font-size:{T.FS_XS}px; background:transparent;")
+            vl = QLabel(val); vl.setStyleSheet(f"color:{T.TEXT}; font-weight:700; font-size:{T.FS_LG}px; background:transparent; border:none;")
+            ll = QLabel(label); ll.setStyleSheet(f"color:{T.TEXT_MUTED}; font-size:{T.FS_XS}px; background:transparent; border:none;")
             col.addWidget(vl, alignment=Qt.AlignmentFlag.AlignCenter)
             col.addWidget(ll, alignment=Qt.AlignmentFlag.AlignCenter)
             lay.addLayout(col)

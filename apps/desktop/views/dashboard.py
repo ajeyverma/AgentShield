@@ -16,9 +16,10 @@ from apps.desktop.services.demo_data      import ACTIVITY, THREATS, get_dashboar
 
 def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
     frame = QFrame()
+    frame.setObjectName("dashboardCard")
     frame.setStyleSheet(
-        f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-        f"border-radius:{T.R_LG}px; }}"
+        f"QFrame#dashboardCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+        f"border-radius:{T.R_LG}px; }} QLabel {{ border: none; }}"
     )
     lay = QVBoxLayout(frame)
     lay.setContentsMargins(T.SP_4, T.SP_4, T.SP_4, T.SP_4)
@@ -181,9 +182,9 @@ class DashboardView(QWidget):
             info_col = QVBoxLayout()
             info_col.setSpacing(1)
             title_l = QLabel(t.threat_type)
-            title_l.setStyleSheet(f"color:{T.TEXT}; font-weight:600; background:transparent;")
+            title_l.setStyleSheet(f"color:{T.TEXT}; font-weight:600; background:transparent; border:none;")
             sub_l = QLabel(f"{t.source_agent}  •  {t.detected_at[11:16]}")
-            sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent;")
+            sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent; border:none;")
             info_col.addWidget(title_l)
             info_col.addWidget(sub_l)
             row_h.addLayout(info_col)

@@ -342,9 +342,10 @@ class ApprovalCenterView(QWidget):
         }.get(st, T.BORDER)
 
         card = QFrame()
+        card.setObjectName("approvalCard")
         card.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-            f"border-left:4px solid {border_col}; border-radius:{T.R_LG}px; }}"
+            f"QFrame#approvalCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+            f"border-left:4px solid {border_col}; border-radius:{T.R_LG}px; }} QLabel {{ border: none; }}"
         )
         lay = QHBoxLayout(card)
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)

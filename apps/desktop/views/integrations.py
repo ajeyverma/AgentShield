@@ -84,8 +84,9 @@ class IntegrationsView(QWidget):
 
     def _make_card(self, integ: IntegrationRecord) -> QFrame:
         card = QFrame()
+        card.setObjectName("integrationCard")
         card.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER}; border-radius:{T.R_XL}px; }}"
+            f"QFrame#integrationCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER}; border-radius:{T.R_XL}px; }} QLabel {{ border: none; }}"
         )
         lay = QVBoxLayout(card)
         lay.setContentsMargins(T.SP_5, T.SP_5, T.SP_5, T.SP_5)

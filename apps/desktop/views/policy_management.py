@@ -471,9 +471,10 @@ class PolicyManagementView(QWidget):
 
     def _make_card(self, pol: dict[str, Any]) -> QFrame:
         card = QFrame()
+        card.setObjectName("policyCard")
         card.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-            f"border-radius:{T.R_LG}px; padding:{T.SP_3}px; }}"
+            f"QFrame#policyCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+            f"border-radius:{T.R_LG}px; padding:{T.SP_3}px; }} QLabel {{ border: none; }}"
         )
         lay = QHBoxLayout(card)
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)

@@ -152,8 +152,9 @@ class SettingsView(QWidget):
 
     def _card(self) -> QFrame:
         f = QFrame()
+        f.setObjectName("settingsCard")
         f.setStyleSheet(
-            f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
-            f"border-radius:{T.R_LG}px; padding:{T.SP_3}px; }}"
+            f"QFrame#settingsCard {{ background:{T.SURFACE}; border:1px solid {T.BORDER};"
+            f"border-radius:{T.R_LG}px; padding:{T.SP_3}px; }} QLabel {{ border: none; }}"
         )
         return f

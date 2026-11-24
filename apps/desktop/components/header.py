@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -101,15 +102,21 @@ class TopNavButton(QPushButton):
         self._apply_style(active)
 
 
-class Header(QWidget):
-    """Standard desktop application top menu bar."""
+class Header(QFrame):
+    """Standard desktop application top menu bar (pure white background)."""
 
     page_changed = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
         self.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; margin: 0px; padding: 0px;"
+            "QFrame {"
+            "  background-color: #FFFFFF !important;"
+            f"  border-bottom: 1px solid {T.BORDER};"
+            "  margin: 0px; padding: 0px;"
+            "}"
         )
         self._buttons: dict[str, TopNavButton] = {}
         self._active_id: str = "dashboard"

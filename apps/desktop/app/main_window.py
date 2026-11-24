@@ -91,6 +91,7 @@ class MainWindow(QMainWindow):
 
         # ── Top Navigation Header ────────────────────────────────────────────
         self._header = Header()
+        self._header.setStyleSheet("background-color: #FFFFFF !important; border-bottom: 1px solid #E2E8F0; margin: 0px; padding: 0px;")
         self._header.page_changed.connect(self._on_page_changed)
         root_lay.addWidget(self._header)
 

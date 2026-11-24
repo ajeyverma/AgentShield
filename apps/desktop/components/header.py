@@ -50,7 +50,7 @@ class TopNavButton(QPushButton):
         super().__init__(parent)
         self.page_id = page_id
         self.setText(label)
-        self.setCheckable(True)
+        self.setCheckable(False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(22)
         self._apply_style(False)
@@ -59,30 +59,46 @@ class TopNavButton(QPushButton):
         if active:
             self.setStyleSheet(
                 "QPushButton {"
-                f"  background: {T.PRIMARY}; color: #FFFFFF;"
-                "  border: none; border-radius: 2px;"
+                "  background-color: #2563EB !important;"
+                "  color: #FFFFFF !important;"
+                "  border: none !important;"
+                "  border-radius: 3px;"
                 "  padding: 0px 8px; margin: 0px;"
                 "  min-height: 0px; max-height: 22px; height: 22px;"
                 "  font-size: 12px; font-weight: 600;"
+                "}"
+                "QPushButton:hover {"
+                "  background-color: #1D4ED8 !important;"
+                "  color: #FFFFFF !important;"
+                "}"
+                "QPushButton:pressed {"
+                "  background-color: #1E40AF !important;"
+                "  color: #FFFFFF !important;"
                 "}"
             )
         else:
             self.setStyleSheet(
                 "QPushButton {"
-                "  background: transparent; color: #334155;"
-                "  border: none; border-radius: 2px;"
+                "  background-color: transparent !important;"
+                "  color: #334155 !important;"
+                "  border: none !important;"
+                "  border-radius: 3px;"
                 "  padding: 0px 8px; margin: 0px;"
                 "  min-height: 0px; max-height: 22px; height: 22px;"
                 "  font-size: 12px; font-weight: 500;"
                 "}"
                 "QPushButton:hover {"
-                "  background: #E2E8F0; color: #0F172A;"
+                "  background-color: #EFF6FF !important;"
+                "  color: #2563EB !important;"
+                "}"
+                "QPushButton:pressed {"
+                "  background-color: #DBEAFE !important;"
+                "  color: #1D4ED8 !important;"
                 "}"
             )
 
     def set_active(self, active: bool):
         self._apply_style(active)
-        self.setChecked(active)
 
 
 class Header(QWidget):

@@ -1,14 +1,14 @@
 """
 AgentShield AI — Desktop Menu Bar Navigation (Clean Desktop Style).
 
-Standard text-based desktop menu bar without emojis, providing fast navigation,
-connection status indicator, and context header.
+Standard text-based desktop menu bar without emojis, providing fast navigation
+and clean context header. Connection status and user identity are placed in
+the bottom status bar.
 """
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -119,26 +119,6 @@ class Header(QWidget):
             menu_lay.addWidget(btn)
 
         menu_lay.addStretch()
-
-        # Connection status badge (text only, clean)
-        self._conn_indicator = QLabel("Connected")
-        self._conn_indicator.setStyleSheet(
-            f"color: {T.SUCCESS}; background: {T.SUCCESS_BG}; border: 1px solid {T.SUCCESS};"
-            "border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
-        )
-        menu_lay.addWidget(self._conn_indicator)
-
-        # User profile button (text only, clean)
-        user_btn = QPushButton("Admin")
-        user_btn.setFixedHeight(24)
-        user_btn.setStyleSheet(
-            "QPushButton {"
-            f"  background: transparent; color: {T.TEXT_SEC}; border: 1px solid {T.BORDER};"
-            "  border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 500;"
-            "}"
-            f"QPushButton:hover {{ background: {T.BORDER}; color: {T.TEXT}; }}"
-        )
-        menu_lay.addWidget(user_btn)
         root.addWidget(menu_bar)
 
         # ── Row 2: Page Title & Context Bar ──────────────────────────────────
@@ -191,15 +171,5 @@ class Header(QWidget):
         self._set_active_button(page_id)
 
     def set_connected(self, connected: bool):
-        if connected:
-            self._conn_indicator.setText("Connected")
-            self._conn_indicator.setStyleSheet(
-                f"color: {T.SUCCESS}; background: {T.SUCCESS_BG}; border: 1px solid {T.SUCCESS};"
-                "border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
-            )
-        else:
-            self._conn_indicator.setText("Disconnected")
-            self._conn_indicator.setStyleSheet(
-                f"color: {T.TEXT_MUTED}; background: {T.SURFACE_ALT}; border: 1px solid {T.BORDER};"
-                "border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
-            )
+        """Maintained for backward compatibility."""
+        pass

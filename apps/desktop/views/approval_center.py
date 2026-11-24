@@ -34,8 +34,8 @@ from PySide6.QtWidgets import (
 from apps.desktop.components.page_header import PageHeader
 from apps.desktop.components.stat_card import StatCard
 from apps.desktop.components.status_badge import RiskBadge, StatusBadge
+from apps.desktop.components.empty_state import EmptyState
 from apps.desktop.services.backend_client import backend_client
-from apps.desktop.services.demo_data import APPROVALS, ApprovalRecord
 from apps.desktop.themes.design_tokens import T
 
 logger = logging.getLogger("agentshield.desktop.approval_center")
@@ -221,7 +221,6 @@ class ApprovalCenterView(QWidget):
         root.addWidget(PageHeader(
             "Approval Center",
             "Human-in-the-loop authorization gateway for protected agent operations.",
-            demo_note="LIVE SECURITY GATEWAY — Real-time execution mediation",
         ))
 
         # Stat cards row
@@ -273,27 +272,12 @@ class ApprovalCenterView(QWidget):
         root.addWidget(scroll, stretch=1)
 
     def refresh_data(self):
-        """Fetch real approval requests from backend or fallback to local demo data."""
+        """Fetch real approval requests from backend."""
         backend_items = backend_client.get_approvals()
         if backend_items is not None:
             self._records = backend_items
         else:
-            # Fallback to demo data
-            self._records = [
-                {
-                    "id": r.request_id,
-                    "request_id": r.request_id,
-                    "agent_id": r.agent_name,
-                    "tool_name": r.tool_name,
-                    "operation": r.operation,
-                    "risk_level": r.risk_level,
-                    "description": r.description,
-                    "status": r.status.lower(),
-                    "created_at": r.requested_at,
-                    "arguments": r.arguments,
-                }
-                for r in APPROVALS
-            ]
+            self._records = []
         self._apply_filters()
 
     def _apply_filters(self):
@@ -320,9 +304,17 @@ class ApprovalCenterView(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        for idx, rec in enumerate(records):
-            card = self._make_card(rec)
-            self._list_layout.insertWidget(idx, card)
+        if not records:
+            empty = EmptyState(
+                "📋",
+                "No pending or historical approval requests found.",
+                "Tool calls requiring human authorization will appear here when an agent triggers an ASK_HUMAN policy.",
+            )
+            self._list_layout.insertWidget(0, empty)
+        else:
+            for idx, rec in enumerate(records):
+                card = self._make_card(rec)
+                self._list_layout.insertWidget(idx, card)
 
         # Update counter badges
         pending_count = sum(1 for r in self._records if r.get("status", "").lower() == "pending")

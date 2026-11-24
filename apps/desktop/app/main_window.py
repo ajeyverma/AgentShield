@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
             )
         else:
             self._status_bar.showMessage(
-                f"AgentShield AI v{_APP_VERSION}  |  Disconnected from backend — Running in local demo mode"
+                f"AgentShield AI v{_APP_VERSION}  |  Disconnected from backend — Offline"
             )
 
     # ── Background Backend Monitoring ────────────────────────────────────────

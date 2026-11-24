@@ -1,7 +1,8 @@
-"""Audit Logs view — Phase 2 demo data with CSV export."""
+"""Audit Logs view with cryptographic hash chain verification and CSV export."""
 from __future__ import annotations
 import csv
 import os
+from typing import Any
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton,
     QDialog, QDialogButtonBox, QGridLayout, QFileDialog,
@@ -11,20 +12,28 @@ from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.status_badge import DecisionBadge, StatusBadge
 from apps.desktop.services.backend_client import backend_client
-from apps.desktop.services.demo_data      import AUDIT_LOGS, AuditRecord
 
 
-def _row(r: AuditRecord) -> list:
-    return [r.timestamp, r.event_id, r.agent_name, r.action,
-            r.decision, r.result, r.policy_id, r.details, r.event_id]
+def _row(r: dict[str, Any]) -> list:
+    return [
+        str(r.get("timestamp", ""))[:19],
+        str(r.get("event_id") or r.get("id", ""))[:12],
+        str(r.get("agent_id") or r.get("agent_name", "")),
+        str(r.get("action") or r.get("operation", "")),
+        str(r.get("decision", "ALLOW")),
+        str(r.get("result") or r.get("status", "SUCCESS")),
+        str(r.get("policy_id", "")),
+        str(r.get("details", "")),
+        str(r.get("event_id") or r.get("id", "")),
+    ]
 
 
 class AuditLogsView(QWidget):
-    """Audit log viewer — demo data only."""
+    """Audit log viewer connected to backend audit service."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._records = {r.event_id: r for r in AUDIT_LOGS}
+        self._records: dict[str, Any] = {}
         self._build()
 
     def _build(self):
@@ -37,7 +46,6 @@ class AuditLogsView(QWidget):
         hdr_row.addWidget(PageHeader(
             "Audit Logs",
             "Tamper-evident security evaluation audit trail with SHA-256 hash chaining.",
-            demo_note="PRODUCTION CAPABLE — Tamper-Evident Hash Chain Verified",
         ))
 
         btn_box = QHBoxLayout()
@@ -58,7 +66,12 @@ class AuditLogsView(QWidget):
 
         headers = ["Timestamp", "Event ID", "Agent", "Action",
                    "Decision", "Result", "Policy", "Details", "_id"]
-        rows = [_row(r) for r in AUDIT_LOGS]
+
+        logs = backend_client.get_audit_logs() or []
+        for r in logs:
+            eid = str(r.get("event_id") or r.get("id", ""))
+            self._records[eid] = r
+        rows = [_row(r) for r in logs]
 
         self._table = DataTable(
             headers, rows,
@@ -77,7 +90,8 @@ class AuditLogsView(QWidget):
         if not rec:
             return
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Audit Detail — {rec.event_id}")
+        event_id = str(rec.get("event_id") or rec.get("id", ""))
+        dlg.setWindowTitle(f"Audit Detail — {event_id}")
         dlg.setMinimumWidth(480)
         dlg.setStyleSheet(f"background:{T.SURFACE};")
         lay = QVBoxLayout(dlg)
@@ -85,18 +99,18 @@ class AuditLogsView(QWidget):
         lay.setSpacing(T.SP_3)
 
         top = QHBoxLayout()
-        top.addWidget(DecisionBadge(rec.decision))
-        top.addWidget(StatusBadge(rec.result))
+        top.addWidget(DecisionBadge(str(rec.get("decision", "ALLOW"))))
+        top.addWidget(StatusBadge(str(rec.get("result") or rec.get("status", "SUCCESS"))))
         top.addStretch()
         lay.addLayout(top)
 
         grid = QGridLayout(); grid.setSpacing(T.SP_2)
         for i, (k, v) in enumerate([
-            ("Event ID",   rec.event_id),
-            ("Timestamp",  rec.timestamp),
-            ("Agent",      rec.agent_name),
-            ("Action",     rec.action),
-            ("Policy",     rec.policy_id),
+            ("Event ID",   event_id),
+            ("Timestamp",  str(rec.get("timestamp", ""))),
+            ("Agent",      str(rec.get("agent_id") or rec.get("agent_name", ""))),
+            ("Action",     str(rec.get("action") or rec.get("operation", ""))),
+            ("Policy",     str(rec.get("policy_id", ""))),
         ]):
             kl = QLabel(k + ":"); kl.setStyleSheet(f"color:{T.TEXT_SEC}; font-weight:600; font-size:{T.FS_SM}px;")
             vl = QLabel(v);       vl.setStyleSheet(f"color:{T.TEXT};")
@@ -106,7 +120,7 @@ class AuditLogsView(QWidget):
         detail_l = QLabel("Details:")
         detail_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-weight:600; font-size:{T.FS_SM}px;")
         lay.addWidget(detail_l)
-        d_txt = QLabel(rec.details); d_txt.setWordWrap(True)
+        d_txt = QLabel(str(rec.get("details", ""))); d_txt.setWordWrap(True)
         d_txt.setStyleSheet(f"color:{T.TEXT};")
         lay.addWidget(d_txt)
 
@@ -117,7 +131,7 @@ class AuditLogsView(QWidget):
 
     def _export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Audit Logs", "agentshield_audit_demo.csv",
+            self, "Export Audit Logs", "agentshield_audit.csv",
             "CSV Files (*.csv)"
         )
         if not path:
@@ -126,9 +140,17 @@ class AuditLogsView(QWidget):
             w = csv.writer(f)
             w.writerow(["Timestamp", "Event ID", "Agent", "Action",
                         "Decision", "Result", "Policy", "Details"])
-            for r in AUDIT_LOGS:
-                w.writerow([r.timestamp, r.event_id, r.agent_name, r.action,
-                            r.decision, r.result, r.policy_id, r.details])
+            for r in self._records.values():
+                w.writerow([
+                    str(r.get("timestamp", "")),
+                    str(r.get("event_id") or r.get("id", "")),
+                    str(r.get("agent_id") or r.get("agent_name", "")),
+                    str(r.get("action") or r.get("operation", "")),
+                    str(r.get("decision", "ALLOW")),
+                    str(r.get("result") or r.get("status", "SUCCESS")),
+                    str(r.get("policy_id", "")),
+                    str(r.get("details", "")),
+                ])
 
     def _verify_chain(self):
         """Invoke cryptographic audit verification and display result."""

@@ -40,7 +40,20 @@ class BackendClient:
     def is_connected(self) -> bool:
         return self._connected
 
+    def ensure_authenticated(self) -> bool:
+        """Ensure desktop client has an active session token with backend."""
+        if self.token:
+            return True
+        # Try logging in with default desktop user
+        if self.login("admin", "Admin12345!"):
+            return True
+        # If user not created yet in clean database, register default desktop admin user
+        self.register("admin@agentshield.io", "admin", "Admin12345!")
+        return self.login("admin", "Admin12345!")
+
     def _headers(self) -> dict[str, str]:
+        if not self.token:
+            self.ensure_authenticated()
         headers = {"Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
@@ -58,6 +71,8 @@ class BackendClient:
             resp = self._client.get(f"{self.api_prefix}/health")
             if resp.status_code == 200:
                 self._connected = True
+                if not self.token:
+                    self.ensure_authenticated()
                 return resp.json()
             self._connected = False
             return None

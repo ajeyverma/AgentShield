@@ -36,8 +36,8 @@ from PySide6.QtWidgets import (
 
 from apps.desktop.components.page_header import PageHeader
 from apps.desktop.components.status_badge import StatusBadge
+from apps.desktop.components.empty_state import EmptyState
 from apps.desktop.services.backend_client import backend_client
-from apps.desktop.services.demo_data import POLICIES
 from apps.desktop.themes.design_tokens import T
 
 logger = logging.getLogger("agentshield.desktop.policy_management")
@@ -405,7 +405,6 @@ class PolicyManagementView(QWidget):
         root.addWidget(PageHeader(
             "Policy Management",
             "Security policies governing runtime agent actions with deterministic precedence.",
-            demo_note="LIVE SECURITY ENGINE — Hierarchical evaluation active",
         ))
 
         # Top toolbar
@@ -474,21 +473,7 @@ class PolicyManagementView(QWidget):
         if backend_items is not None:
             self._policies = backend_items
         else:
-            self._policies = [
-                {
-                    "id": p.policy_id,
-                    "name": p.name,
-                    "category": p.category,
-                    "enforcement_mode": p.enforcement,
-                    "decision": "BLOCK" if "block" in p.enforcement.lower() else "ALLOW",
-                    "priority": 100,
-                    "is_enabled": p.status.lower() == "active",
-                    "tool_scope": "*",
-                    "version": 1,
-                    "description": p.description,
-                }
-                for p in POLICIES
-            ]
+            self._policies = []
         self._render_policies()
 
     def _render_policies(self):
@@ -497,9 +482,17 @@ class PolicyManagementView(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        for idx, pol in enumerate(self._policies):
-            card = self._make_card(pol)
-            self._list_layout.insertWidget(idx, card)
+        if not self._policies:
+            empty = EmptyState(
+                "📜",
+                "No custom security policies configured.",
+                "Create a new policy using '+ New Policy' above or connect to the AgentShield backend.",
+            )
+            self._list_layout.insertWidget(0, empty)
+        else:
+            for idx, pol in enumerate(self._policies):
+                card = self._make_card(pol)
+                self._list_layout.insertWidget(idx, card)
 
     def _make_card(self, pol: dict[str, Any]) -> QFrame:
         card = QFrame()

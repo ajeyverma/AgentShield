@@ -11,7 +11,6 @@ from apps.desktop.components.status_badge import DecisionBadge, RiskBadge, Statu
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.mini_chart   import BarChartWidget, DonutChartWidget
 from apps.desktop.services.backend_client import backend_client
-from apps.desktop.services.demo_data      import ACTIVITY, THREATS, get_dashboard_stats
 
 
 def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
@@ -34,12 +33,26 @@ def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
 
 
 class DashboardView(QWidget):
-    """Main dashboard — unified security overview."""
+    """Main dashboard — unified real security overview."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._stats = get_dashboard_stats()
-        # Fetch live metrics if backend connected
+        self._stats = {
+            "total_agents": 0,
+            "active_agents": 0,
+            "actions_today": 0,
+            "blocked_today": 0,
+            "pending_approvals": 0,
+            "allow_count": 0,
+            "block_count": 0,
+            "ask_count": 0,
+            "critical_threats": 0,
+            "high_threats": 0,
+            "resolved_threats": 0,
+            "trend_allow": [0] * 10,
+            "trend_block": [0] * 10,
+        }
+        # Fetch real metrics if backend connected
         try:
             live = backend_client.get_metrics_summary()
             if live and "counters" in live:
@@ -51,6 +64,11 @@ class DashboardView(QWidget):
                     self._stats["blocked_today"] = c["security.decisions.BLOCK"]
                 if "security.alerts.active" in g:
                     self._stats["pending_approvals"] = int(g["security.alerts.active"])
+
+            agents = backend_client.get_agents()
+            if agents:
+                self._stats["total_agents"] = len(agents)
+                self._stats["active_agents"] = sum(1 for a in agents if str(a.get("status", "")).lower() == "active")
         except Exception:
             pass
         self._build()
@@ -64,7 +82,6 @@ class DashboardView(QWidget):
         root.addWidget(PageHeader(
             "Dashboard",
             "Security overview and recent activity summary.",
-            demo_note="DEMO DATA — Not real security monitoring",
         ))
 
         # Scroll area for content
@@ -145,22 +162,37 @@ class DashboardView(QWidget):
             f"QTableWidget::item {{ padding:6px 12px; }}"
         )
 
-        for rec in ACTIVITY[:8]:
-            r = table.rowCount()
-            table.insertRow(r)
-            table.setItem(r, 0, QTableWidgetItem(rec.timestamp[11:16]))
-            table.setItem(r, 1, QTableWidgetItem(rec.agent_name))
-            table.setItem(r, 2, QTableWidgetItem(rec.tool_name))
-            table.setItem(r, 3, QTableWidgetItem(rec.operation))
-            # Decision badge
-            dec = DecisionBadge(rec.decision)
-            table.setCellWidget(r, 4, dec)
-            table.setItem(r, 4, QTableWidgetItem(rec.decision))
-            # Status badge
-            sb = StatusBadge(rec.status)
-            table.setCellWidget(r, 5, sb)
-            table.setItem(r, 5, QTableWidgetItem(rec.status))
-            table.setRowHeight(r, 36)
+        real_executions = []
+        if backend_client.is_connected:
+            resp = backend_client.list_executions(size=8)
+            if resp and "items" in resp:
+                real_executions = resp["items"]
+
+        if real_executions:
+            for rec in real_executions:
+                r = table.rowCount()
+                table.insertRow(r)
+                table.setItem(r, 0, QTableWidgetItem(str(rec.get("created_at", ""))[:19]))
+                table.setItem(r, 1, QTableWidgetItem(str(rec.get("agent_id", ""))[:12]))
+                table.setItem(r, 2, QTableWidgetItem(str(rec.get("tool_name", ""))))
+                table.setItem(r, 3, QTableWidgetItem(str(rec.get("action_name", ""))))
+                # Decision badge
+                dec_str = str(rec.get("decision", "ALLOW"))
+                dec = DecisionBadge(dec_str)
+                table.setCellWidget(r, 4, dec)
+                table.setItem(r, 4, QTableWidgetItem(dec_str))
+                # Status badge
+                st_str = str(rec.get("status", "COMPLETED"))
+                sb = StatusBadge(st_str)
+                table.setCellWidget(r, 5, sb)
+                table.setItem(r, 5, QTableWidgetItem(st_str))
+                table.setRowHeight(r, 36)
+        else:
+            table.insertRow(0)
+            empty_item = QTableWidgetItem("No recent activity recorded.")
+            empty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.setItem(0, 0, empty_item)
+            table.setSpan(0, 0, 1, 6)
 
         table.setMaximumHeight(320)
         act_lay.addWidget(table)
@@ -168,36 +200,49 @@ class DashboardView(QWidget):
 
         # ── Recent threats ──────────────────────────────────────────────────
         thr_frame, thr_lay = _card("Recent Security Events")
-        for t in THREATS[:4]:
-            row_w = QWidget()
-            row_w.setStyleSheet(f"background:transparent;")
-            row_h = QHBoxLayout(row_w)
-            row_h.setContentsMargins(0, 4, 0, 4)
-            row_h.setSpacing(T.SP_3)
+        real_threats = []
+        if backend_client.is_connected:
+            t_resp = backend_client.get_threats()
+            if t_resp:
+                real_threats = t_resp if isinstance(t_resp, list) else t_resp.get("items", [])
 
-            sev_badge = RiskBadge(t.severity)
-            sev_badge.setFixedWidth(70)
-            row_h.addWidget(sev_badge)
+        if real_threats:
+            for t in real_threats[:4]:
+                row_w = QWidget()
+                row_w.setStyleSheet(f"background:transparent;")
+                row_h = QHBoxLayout(row_w)
+                row_h.setContentsMargins(0, 4, 0, 4)
+                row_h.setSpacing(T.SP_3)
 
-            info_col = QVBoxLayout()
-            info_col.setSpacing(1)
-            title_l = QLabel(t.threat_type)
-            title_l.setStyleSheet(f"color:{T.TEXT}; font-weight:600; background:transparent; border:none;")
-            sub_l = QLabel(f"{t.source_agent}  •  {t.detected_at[11:16]}")
-            sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent; border:none;")
-            info_col.addWidget(title_l)
-            info_col.addWidget(sub_l)
-            row_h.addLayout(info_col)
-            row_h.addStretch()
+                sev = str(t.get("severity", "MEDIUM")).capitalize()
+                sev_badge = RiskBadge(sev)
+                sev_badge.setFixedWidth(70)
+                row_h.addWidget(sev_badge)
 
-            status_b = StatusBadge(t.status)
-            row_h.addWidget(status_b)
+                info_col = QVBoxLayout()
+                info_col.setSpacing(1)
+                title_l = QLabel(str(t.get("threat_type") or t.get("title", "Threat Event")))
+                title_l.setStyleSheet(f"color:{T.TEXT}; font-weight:600; background:transparent; border:none;")
+                sub_l = QLabel(f"Agent: {str(t.get('agent_id', ''))[:12]}  •  {str(t.get('created_at', ''))[:19]}")
+                sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent; border:none;")
+                info_col.addWidget(title_l)
+                info_col.addWidget(sub_l)
+                row_h.addLayout(info_col)
+                row_h.addStretch()
 
-            thr_lay.addWidget(row_w)
-            sep = QFrame()
-            sep.setFrameShape(QFrame.Shape.HLine)
-            sep.setStyleSheet(f"background:{T.BORDER}; border:none; max-height:1px;")
-            thr_lay.addWidget(sep)
+                status_b = StatusBadge(str(t.get("status", "Open")).capitalize())
+                row_h.addWidget(status_b)
+
+                thr_lay.addWidget(row_w)
+                sep = QFrame()
+                sep.setFrameShape(QFrame.Shape.HLine)
+                sep.setStyleSheet(f"background:{T.BORDER}; border:none; max-height:1px;")
+                thr_lay.addWidget(sep)
+        else:
+            no_thr = QLabel("No security threat events recorded.")
+            no_thr.setStyleSheet(f"color:{T.TEXT_MUTED}; font-size:{T.FS_SM}px; padding:12px;")
+            no_thr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            thr_lay.addWidget(no_thr)
 
         lay.addWidget(thr_frame)
         lay.addStretch()

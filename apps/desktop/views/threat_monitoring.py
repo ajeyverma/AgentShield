@@ -12,8 +12,8 @@ from apps.desktop.themes.design_tokens import T
 from apps.desktop.components.stat_card    import StatCard
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.status_badge import RiskBadge, StatusBadge
+from apps.desktop.components.empty_state  import EmptyState
 from apps.desktop.services.backend_client import backend_client
-from apps.desktop.services.demo_data      import THREATS, ThreatRecord, get_dashboard_stats
 
 
 def _threat_detail(t: dict | ThreatRecord, parent) -> None:
@@ -132,12 +132,9 @@ class ThreatMonitoringView(QWidget):
             if findings_resp and "items" in findings_resp:
                 live_findings = findings_resp["items"]
 
-        demo_active = not live_findings
-
         root.addWidget(PageHeader(
             "Threat Monitoring",
             "Real-time threat detection findings, provenance, and anomaly analysis.",
-            demo_note=("DEMO DATA — Backend not connected or no live findings" if demo_active else "LIVE THREAT ENGINE CONNECTED"),
         ))
 
         # Stat cards
@@ -147,11 +144,10 @@ class ThreatMonitoringView(QWidget):
             high = live_summary.get("high_findings", 0)
             res = live_summary.get("open_findings", 0)
         else:
-            stats = get_dashboard_stats()
-            total = len(THREATS)
-            crit  = stats["critical_threats"]
-            high  = stats["high_threats"]
-            res   = stats["resolved_threats"]
+            total = len(live_findings)
+            crit = sum(1 for f in live_findings if str(f.get("severity", "")).upper() == "CRITICAL")
+            high = sum(1 for f in live_findings if str(f.get("severity", "")).upper() == "HIGH")
+            res = sum(1 for f in live_findings if str(f.get("status", "")).lower() == "open")
 
         cards_row = QHBoxLayout(); cards_row.setSpacing(T.SP_4)
         for title, val, col in [
@@ -178,9 +174,8 @@ class ThreatMonitoringView(QWidget):
                 card = self._make_finding_card(f)
                 inner_lay.addWidget(card)
         else:
-            for t in THREATS:
-                card = self._make_threat_card(t)
-                inner_lay.addWidget(card)
+            empty = EmptyState("🛡️", "No security threats detected. Agents are operating safely.")
+            inner_lay.addWidget(empty)
 
         inner_lay.addStretch()
         scroll.setWidget(inner)

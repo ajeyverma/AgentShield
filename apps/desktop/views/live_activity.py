@@ -11,7 +11,6 @@ from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.status_badge import DecisionBadge, RiskBadge, StatusBadge
 from apps.desktop.services.backend_client import backend_client
-from apps.desktop.services.demo_data      import ACTIVITY, ActivityRecord
 
 
 def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
@@ -108,30 +107,12 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
     dlg.exec()
 
 
-def _row_from(rec: ActivityRecord) -> list:
-    return [rec.timestamp, rec.agent_name, rec.tool_name, rec.operation,
-            rec.decision, rec.risk_level, rec.status, rec.record_id]
-
-
-def _row_from_execution(exec_item: dict) -> list:
-    return [
-        str(exec_item.get("created_at", ""))[:19],
-        str(exec_item.get("agent_id", ""))[:12],
-        exec_item.get("tool_name", ""),
-        exec_item.get("action_name", ""),
-        exec_item.get("decision", "ALLOW"),
-        "LOW" if exec_item.get("decision") == "ALLOW" else "HIGH",
-        exec_item.get("status", "COMPLETED"),
-        str(exec_item.get("execution_id") or exec_item.get("id")),
-    ]
-
-
 class LiveActivityView(QWidget):
-    """Live activity monitor — supports live gateway executions with demo fallback."""
+    """Live activity monitor — displays live gateway executions."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._records = {r.record_id: r for r in ACTIVITY}
+        self._records = {}
         self._build()
 
     def _build(self):
@@ -145,24 +126,18 @@ class LiveActivityView(QWidget):
             if resp and "items" in resp and resp["items"]:
                 live_executions = resp["items"]
 
-        demo_active = not live_executions
-
         root.addWidget(PageHeader(
             "Live Activity",
             "Security evaluation and controlled gateway execution log.",
-            demo_note=("DEMO DATA — Static snapshot, not live" if demo_active else "LIVE EXECUTION GATEWAY CONNECTED"),
         ))
 
         headers = ["Timestamp", "Agent", "Tool", "Operation",
                    "Decision", "Risk Level", "Status", "ID"]
 
-        if live_executions:
-            rows = [_row_from_execution(r) for r in live_executions]
-            for r in live_executions:
-                eid = str(r.get("execution_id") or r.get("id"))
-                self._records[eid] = r
-        else:
-            rows = [_row_from(r) for r in ACTIVITY]
+        rows = [_row_from_execution(r) for r in live_executions]
+        for r in live_executions:
+            eid = str(r.get("execution_id") or r.get("id"))
+            self._records[eid] = r
 
         self._table = DataTable(
             headers, rows,

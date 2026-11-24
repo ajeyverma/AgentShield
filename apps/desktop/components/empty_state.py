@@ -6,7 +6,7 @@ from apps.desktop.themes.design_tokens import T
 
 
 class EmptyState(QWidget):
-    def __init__(self, icon: str = "📭", message: str = "No items found.", parent=None):
+    def __init__(self, icon: str = "📭", message: str = "No items found.", subtext: str = "", parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -18,9 +18,17 @@ class EmptyState(QWidget):
 
         msg_lbl = QLabel(message)
         msg_lbl.setStyleSheet(
-            f"color:{T.TEXT_MUTED}; font-size:{T.FS_MD}px; background:transparent;"
+            f"color:{T.TEXT}; font-size:{T.FS_MD}px; font-weight:600; background:transparent;"
         )
         msg_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(icon_lbl)
         layout.addWidget(msg_lbl)
+
+        if subtext:
+            sub_lbl = QLabel(subtext)
+            sub_lbl.setStyleSheet(
+                f"color:{T.TEXT_MUTED}; font-size:{T.FS_SM}px; background:transparent;"
+            )
+            sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(sub_lbl)

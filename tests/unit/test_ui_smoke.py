@@ -94,6 +94,15 @@ class TestModuleImports:
     def test_main_window_import(self):
         from apps.desktop.app.main_window import MainWindow  # noqa: F401
 
+    def test_main_window_instantiation(self):
+        from PySide6.QtWidgets import QApplication
+        _app = QApplication.instance() or QApplication(["test"])
+        from apps.desktop.app.main_window import MainWindow
+        win = MainWindow()
+        assert win.windowTitle() == "AgentShield AI"
+        assert win.isVisible() is False
+
+
 
 # ---------------------------------------------------------------------------
 # Demo data consistency tests — no QApplication needed

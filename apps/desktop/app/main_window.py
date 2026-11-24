@@ -72,7 +72,7 @@ class MainWindow(QMainWindow):
 
     # ── Window setup ────────────────────────────────────────────────────────
 
-    def _setup_window() -> None:
+    def _setup_window(self) -> None:
         self.setWindowTitle("AgentShield AI")
         self.setMinimumSize(1100, 700)
         self.resize(1280, 800)

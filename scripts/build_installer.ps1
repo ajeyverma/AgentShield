@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Automated Windows installer builder for AgentShield AI.
 .DESCRIPTION

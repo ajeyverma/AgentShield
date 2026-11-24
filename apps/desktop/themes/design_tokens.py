@@ -31,6 +31,7 @@ class T:
 
     # ── Text ─────────────────────────────────────────────────────────────────
     TEXT          = "#172033"
+    TEXT_PRIMARY  = "#172033"
     TEXT_SEC      = "#64748B"
     TEXT_MUTED    = "#94A3B8"
     TEXT_ON_DARK  = "#F1F5F9"   # Text on sidebar / dark surfaces

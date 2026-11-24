@@ -2,7 +2,7 @@
 AgentShield AI — Desktop Menu Bar Navigation (Clean Desktop Style).
 
 Standard text-based desktop menu bar without emojis, with a pure white background
-and zero top/bottom padding for a clean native desktop feel.
+and absolute zero top padding so menu options sit flush against the top edge.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ NAV_ITEMS: list[tuple[str, str]] = [
 
 
 class TopNavButton(QPushButton):
-    """Standard desktop menu item button with zero vertical padding."""
+    """Standard desktop menu item button with absolute zero vertical padding."""
 
     def __init__(self, page_id: str, label: str, parent=None):
         super().__init__(parent)
@@ -52,7 +52,7 @@ class TopNavButton(QPushButton):
         self.setText(label)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(26)
+        self.setFixedHeight(22)
         self._apply_style(False)
 
     def _apply_style(self, active: bool):
@@ -60,8 +60,9 @@ class TopNavButton(QPushButton):
             self.setStyleSheet(
                 "QPushButton {"
                 f"  background: {T.PRIMARY}; color: #FFFFFF;"
-                "  border: none; border-radius: 3px;"
+                "  border: none; border-radius: 2px;"
                 "  padding: 0px 8px; margin: 0px;"
+                "  min-height: 0px; max-height: 22px; height: 22px;"
                 "  font-size: 12px; font-weight: 600;"
                 "}"
             )
@@ -69,8 +70,9 @@ class TopNavButton(QPushButton):
             self.setStyleSheet(
                 "QPushButton {"
                 "  background: transparent; color: #334155;"
-                "  border: none; border-radius: 3px;"
+                "  border: none; border-radius: 2px;"
                 "  padding: 0px 8px; margin: 0px;"
+                "  min-height: 0px; max-height: 22px; height: 22px;"
                 "  font-size: 12px; font-weight: 500;"
                 "}"
                 "QPushButton:hover {"
@@ -91,7 +93,7 @@ class Header(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER};"
+            "background: #FFFFFF; border: none; margin: 0px; padding: 0px;"
         )
         self._buttons: dict[str, TopNavButton] = {}
         self._active_id: str = "dashboard"
@@ -101,18 +103,20 @@ class Header(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+        root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # ── Row 1: Desktop Menu Bar (Pure White BG, Zero Vertical Padding) ───
+        # ── Row 1: Desktop Menu Bar (Flush Top, Zero Top Padding) ────────────
         menu_bar = QWidget()
-        menu_bar.setFixedHeight(28)
+        menu_bar.setFixedHeight(24)
         menu_bar.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER};"
+            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; margin: 0px; padding: 0px;"
         )
         menu_lay = QHBoxLayout(menu_bar)
-        menu_lay.setContentsMargins(8, 0, 8, 0)
+        menu_lay.setContentsMargins(6, 0, 6, 0)
         menu_lay.setSpacing(2)
+        menu_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # Menu items (clean text buttons, flush top/bottom)
+        # Menu items (clean text buttons, flush with top)
         for page_id, label in NAV_ITEMS:
             btn = TopNavButton(page_id, label)
             btn.clicked.connect(lambda _, pid=page_id: self._on_button_clicked(pid))
@@ -124,9 +128,9 @@ class Header(QWidget):
 
         # ── Row 2: Page Title & Context Bar ──────────────────────────────────
         context_bar = QWidget()
-        context_bar.setFixedHeight(32)
+        context_bar.setFixedHeight(30)
         context_bar.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER};"
+            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; margin: 0px; padding: 0px;"
         )
         ctx_lay = QHBoxLayout(context_bar)
         ctx_lay.setContentsMargins(12, 0, 12, 0)

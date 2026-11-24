@@ -155,11 +155,11 @@ class T:
                 background-color: {cls.PRIMARY};
                 color: {cls.TEXT_ON_PRIMARY};
                 border: none;
-                border-radius: {cls.R_MD}px;
-                padding: 7px 18px;
-                font-size: {cls.FS_MD}px;
-                font-weight: 600;
-                min-height: 32px;
+                border-radius: {cls.R_SM}px;
+                padding: 4px 10px;
+                font-size: {cls.FS_SM}px;
+                font-weight: 500;
+                min-height: 24px;
             }}
             QPushButton:hover {{
                 background-color: {cls.PRIMARY_HOVER};
@@ -193,33 +193,48 @@ class T:
             QPushButton#success:hover {{
                 background-color: #15803D;
             }}
-            QLineEdit, QTextEdit, QPlainTextEdit {{
+            QLineEdit {{
                 background-color: {cls.SURFACE};
                 border: 1px solid {cls.BORDER};
-                border-radius: {cls.R_MD}px;
-                padding: 6px 10px;
+                border-radius: {cls.R_SM}px;
+                padding: 3px 8px;
                 color: {cls.TEXT};
-                min-height: 34px;
+                min-height: 24px;
+                font-size: {cls.FS_SM}px;
                 selection-background-color: {cls.PRIMARY};
             }}
-            QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
+            QLineEdit:focus {{
+                border-color: {cls.BORDER_FOCUS};
+                outline: none;
+            }}
+            QTextEdit, QPlainTextEdit {{
+                background-color: {cls.SURFACE};
+                border: 1px solid {cls.BORDER};
+                border-radius: {cls.R_SM}px;
+                padding: 4px 8px;
+                color: {cls.TEXT};
+                font-size: {cls.FS_SM}px;
+                selection-background-color: {cls.PRIMARY};
+            }}
+            QTextEdit:focus, QPlainTextEdit:focus {{
                 border-color: {cls.BORDER_FOCUS};
                 outline: none;
             }}
             QComboBox {{
                 background-color: {cls.SURFACE};
                 border: 1px solid {cls.BORDER};
-                border-radius: {cls.R_MD}px;
-                padding: 6px 10px;
+                border-radius: {cls.R_SM}px;
+                padding: 3px 8px;
                 color: {cls.TEXT};
-                min-height: 34px;
+                min-height: 24px;
+                font-size: {cls.FS_SM}px;
             }}
             QComboBox:focus {{
                 border-color: {cls.BORDER_FOCUS};
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 24px;
+                width: 18px;
             }}
             QComboBox QAbstractItemView {{
                 background: {cls.SURFACE};

@@ -141,8 +141,8 @@ class LightTheme:
     # ------------------------------------------------------------------
     SIDEBAR_WIDTH = 220
     HEADER_HEIGHT = 56
-    INPUT_HEIGHT = "36px"
-    BUTTON_HEIGHT = "36px"
+    INPUT_HEIGHT = "24px"
+    BUTTON_HEIGHT = "24px"
 
     @classmethod
     def global_stylesheet(cls) -> str:
@@ -168,9 +168,9 @@ class LightTheme:
                 background-color: {cls.BRAND_PRIMARY};
                 color: {cls.TEXT_ON_BRAND};
                 border: none;
-                border-radius: {cls.RADIUS_MD};
-                padding: 6px 16px;
-                font-size: {cls.FONT_SIZE_MD};
+                border-radius: {cls.RADIUS_SM};
+                padding: 4px 10px;
+                font-size: {cls.FONT_SIZE_SM};
                 font-weight: {cls.FONT_WEIGHT_MEDIUM};
                 min-height: {cls.BUTTON_HEIGHT};
             }}
@@ -181,13 +181,21 @@ class LightTheme:
                 background-color: {cls.BORDER_DEFAULT};
                 color: {cls.TEXT_TERTIARY};
             }}
-            QLineEdit, QTextEdit, QPlainTextEdit {{
+            QLineEdit {{
                 background-color: {cls.SURFACE};
                 border: 1px solid {cls.BORDER_DEFAULT};
-                border-radius: {cls.RADIUS_MD};
-                padding: 6px 10px;
+                border-radius: {cls.RADIUS_SM};
+                padding: 3px 8px;
                 color: {cls.TEXT_PRIMARY};
                 min-height: {cls.INPUT_HEIGHT};
+                selection-background-color: {cls.BRAND_PRIMARY};
+            }}
+            QTextEdit, QPlainTextEdit {{
+                background-color: {cls.SURFACE};
+                border: 1px solid {cls.BORDER_DEFAULT};
+                border-radius: {cls.RADIUS_SM};
+                padding: 4px 8px;
+                color: {cls.TEXT_PRIMARY};
                 selection-background-color: {cls.BRAND_PRIMARY};
             }}
             QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{

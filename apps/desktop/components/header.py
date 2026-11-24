@@ -86,74 +86,36 @@ class TopNavButton(QPushButton):
 
 
 class Header(QWidget):
-    """Standard desktop application top menu bar and context header."""
+    """Standard desktop application top menu bar."""
 
     page_changed = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(
-            "background: #FFFFFF; border: none; margin: 0px; padding: 0px;"
+            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; margin: 0px; padding: 0px;"
         )
         self._buttons: dict[str, TopNavButton] = {}
         self._active_id: str = "dashboard"
+        self._title_lbl = QLabel()
+        self._desc_lbl = QLabel()
         self._build()
 
     def _build(self):
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(6, 0, 6, 0)
+        root.setSpacing(2)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        # ── Row 1: Desktop Menu Bar (Flush Top, Zero Top Padding) ────────────
-        menu_bar = QWidget()
-        menu_bar.setFixedHeight(24)
-        menu_bar.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; margin: 0px; padding: 0px;"
-        )
-        menu_lay = QHBoxLayout(menu_bar)
-        menu_lay.setContentsMargins(6, 0, 6, 0)
-        menu_lay.setSpacing(2)
-        menu_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.setFixedHeight(24)
 
         # Menu items (clean text buttons, flush with top)
         for page_id, label in NAV_ITEMS:
             btn = TopNavButton(page_id, label)
             btn.clicked.connect(lambda _, pid=page_id: self._on_button_clicked(pid))
             self._buttons[page_id] = btn
-            menu_lay.addWidget(btn)
+            root.addWidget(btn)
 
-        menu_lay.addStretch()
-        root.addWidget(menu_bar)
-
-        # ── Row 2: Page Title & Context Bar ──────────────────────────────────
-        context_bar = QWidget()
-        context_bar.setFixedHeight(30)
-        context_bar.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; margin: 0px; padding: 0px;"
-        )
-        ctx_lay = QHBoxLayout(context_bar)
-        ctx_lay.setContentsMargins(12, 0, 12, 0)
-        ctx_lay.setSpacing(8)
-
-        self._title_lbl = QLabel("Dashboard")
-        self._title_lbl.setStyleSheet(
-            f"color: {T.TEXT}; font-size: 13px; font-weight: 700;"
-        )
-        ctx_sep = QLabel("|")
-        ctx_sep.setStyleSheet(f"color: {T.TEXT_MUTED}; font-size: 12px;")
-
-        self._desc_lbl = QLabel("Security overview and activity summary")
-        self._desc_lbl.setStyleSheet(
-            f"color: {T.TEXT_SEC}; font-size: 12px;"
-        )
-
-        ctx_lay.addWidget(self._title_lbl)
-        ctx_lay.addWidget(ctx_sep)
-        ctx_lay.addWidget(self._desc_lbl)
-        ctx_lay.addStretch()
-
-        root.addWidget(context_bar)
+        root.addStretch()
 
         # Set default active
         self._set_active_button("dashboard")

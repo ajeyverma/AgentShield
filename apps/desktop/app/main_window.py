@@ -139,25 +139,12 @@ class MainWindow(QMainWindow):
             f"}}"
         )
 
-        # Permanent widgets on the right side of the bottom status bar
-        self._status_conn_badge = QLabel("Connected")
-        self._status_conn_badge.setStyleSheet(
-            f"color: {T.SUCCESS}; background: {T.SUCCESS_BG}; border: 1px solid {T.SUCCESS};"
-            "border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 600;"
+        # Permanent plain text label on the right side of the bottom status bar
+        self._status_user_lbl = QLabel("Admin")
+        self._status_user_lbl.setStyleSheet(
+            f"color: {T.TEXT_SEC}; font-size: 11px; font-weight: 500; padding: 0px 8px;"
         )
-        self._status_bar.addPermanentWidget(self._status_conn_badge)
-
-        self._status_user_btn = QPushButton("Admin")
-        self._status_user_btn.setFixedHeight(22)
-        self._status_user_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._status_user_btn.setStyleSheet(
-            "QPushButton {"
-            f"  background: transparent; color: {T.TEXT_SEC}; border: 1px solid {T.BORDER};"
-            "  border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 500;"
-            "}"
-            f"QPushButton:hover {{ background: {T.BORDER}; color: {T.TEXT}; }}"
-        )
-        self._status_bar.addPermanentWidget(self._status_user_btn)
+        self._status_bar.addPermanentWidget(self._status_user_lbl)
 
         self._update_status_bar(connected=False)
         self.setStatusBar(self._status_bar)
@@ -167,19 +154,9 @@ class MainWindow(QMainWindow):
             self._status_bar.showMessage(
                 f"AgentShield AI v{_APP_VERSION}  |  Connected to backend: {BACKEND_URL}"
             )
-            self._status_conn_badge.setText("Connected")
-            self._status_conn_badge.setStyleSheet(
-                f"color: {T.SUCCESS}; background: {T.SUCCESS_BG}; border: 1px solid {T.SUCCESS};"
-                "border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 600;"
-            )
         else:
             self._status_bar.showMessage(
                 f"AgentShield AI v{_APP_VERSION}  |  Disconnected from backend — Running in local demo mode"
-            )
-            self._status_conn_badge.setText("Disconnected")
-            self._status_conn_badge.setStyleSheet(
-                f"color: {T.TEXT_MUTED}; background: {T.SURFACE_ALT}; border: 1px solid {T.BORDER};"
-                "border-radius: 4px; padding: 1px 8px; font-size: 11px; font-weight: 600;"
             )
 
     # ── Background Backend Monitoring ────────────────────────────────────────

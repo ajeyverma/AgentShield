@@ -84,7 +84,8 @@ class MainWindow(QMainWindow):
     def _build_shell(self) -> None:
         """Build the clean top-navigation layout: Top Menu Bar Header | Content Stack."""
         root = QWidget()
-        root.setStyleSheet(f"background:{T.BG_APP};")
+        root.setObjectName("centralRoot")
+        root.setStyleSheet(f"QWidget#centralRoot {{ background:{T.BG_APP}; }}")
         root_lay = QVBoxLayout(root)
         root_lay.setContentsMargins(0, 0, 0, 0)
         root_lay.setSpacing(0)
@@ -97,7 +98,8 @@ class MainWindow(QMainWindow):
 
         # ── Full-width Content Stack ─────────────────────────────────────────
         self._stack = QStackedWidget()
-        self._stack.setStyleSheet(f"background:{T.BG_APP};")
+        self._stack.setObjectName("contentStack")
+        self._stack.setStyleSheet(f"QStackedWidget#contentStack {{ background:{T.BG_APP}; }}")
         root_lay.addWidget(self._stack, stretch=1)
 
         self.setCentralWidget(root)

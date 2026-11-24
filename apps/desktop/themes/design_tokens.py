@@ -171,6 +171,19 @@ class T:
                 background-color: {cls.BORDER};
                 color: {cls.TEXT_MUTED};
             }}
+            QPushButton#primary {{
+                background-color: {cls.PRIMARY};
+                color: {cls.TEXT_ON_PRIMARY};
+                border: none;
+                border-radius: {cls.R_SM}px;
+                padding: 4px 10px;
+                font-size: {cls.FS_SM}px;
+                font-weight: 600;
+                min-height: 24px;
+            }}
+            QPushButton#primary:hover {{
+                background-color: {cls.PRIMARY_HOVER};
+            }}
             QPushButton#secondary {{
                 background-color: {cls.SURFACE};
                 color: {cls.TEXT};

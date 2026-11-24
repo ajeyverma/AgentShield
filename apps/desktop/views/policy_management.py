@@ -56,7 +56,8 @@ class PolicyEditorDialog(QDialog):
         title = "Edit Policy" if self.is_edit else "Create New Policy"
         self.setWindowTitle(title)
         self.setMinimumWidth(560)
-        self.setStyleSheet(f"background:{T.SURFACE};")
+        self.setObjectName("policyEditDialog")
+        self.setStyleSheet(f"QDialog#policyEditDialog {{ background:{T.SURFACE}; }}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
@@ -173,7 +174,8 @@ class PolicySimulatorDialog(QDialog):
     def _build_ui(self):
         self.setWindowTitle("Policy Simulator — Safe Synthetic Evaluation")
         self.setMinimumWidth(620)
-        self.setStyleSheet(f"background:{T.SURFACE};")
+        self.setObjectName("policyEditDialog")
+        self.setStyleSheet(f"QDialog#policyEditDialog {{ background:{T.SURFACE}; }}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
@@ -281,7 +283,8 @@ class EmergencyControlsDialog(QDialog):
     def _build_ui(self):
         self.setWindowTitle("Emergency Security Controls — Lockdown & Kill-Switch")
         self.setMinimumWidth(600)
-        self.setStyleSheet(f"background:{T.SURFACE};")
+        self.setObjectName("emergencyDialog")
+        self.setStyleSheet(f"QDialog#emergencyDialog {{ background:{T.SURFACE}; }}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
@@ -289,7 +292,7 @@ class EmergencyControlsDialog(QDialog):
 
         self.status_banner = QLabel("Checking lockdown status...")
         self.status_banner.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+            f"background:{T.SURFACE_ALT}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
         )
         layout.addWidget(self.status_banner)
 
@@ -297,10 +300,12 @@ class EmergencyControlsDialog(QDialog):
         actions_row = QHBoxLayout()
         pause_btn = QPushButton("⚡ Pause All Executions")
         pause_btn.setObjectName("danger")
+        pause_btn.setStyleSheet(f"background-color:{T.DANGER}; color:white; border:none; padding:5px 12px; font-weight:600; border-radius:4px;")
         pause_btn.clicked.connect(lambda: self._activate_quick("PAUSE_EXECUTIONS", "*"))
 
         deny_btn = QPushButton("🔒 Emergency Deny Mode")
         deny_btn.setObjectName("danger")
+        deny_btn.setStyleSheet(f"background-color:{T.DANGER}; color:white; border:none; padding:5px 12px; font-weight:600; border-radius:4px;")
         deny_btn.clicked.connect(lambda: self._activate_quick("EMERGENCY_DENY_MODE", "*"))
 
         actions_row.addWidget(pause_btn)
@@ -311,14 +316,23 @@ class EmergencyControlsDialog(QDialog):
         self.controls_list = QTextEdit()
         self.controls_list.setReadOnly(True)
         self.controls_list.setMaximumHeight(130)
+        self.controls_list.setStyleSheet(
+            f"background:{T.SURFACE_ALT}; color:{T.TEXT}; border:1px solid {T.BORDER}; font-family:monospace; font-size:{T.FS_SM}px; padding:4px;"
+        )
         layout.addWidget(self.controls_list)
 
         revoke_btn = QPushButton("✓ Revoke Emergency Control")
         revoke_btn.setObjectName("secondary")
+        revoke_btn.setStyleSheet(
+            f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:4px;"
+        )
         revoke_btn.clicked.connect(self._handle_revoke)
         layout.addWidget(revoke_btn)
 
         close_btn = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 12px; border-radius:4px; }}"
+        )
         close_btn.rejected.connect(self.reject)
         layout.addWidget(close_btn)
 
@@ -330,12 +344,12 @@ class EmergencyControlsDialog(QDialog):
             if is_active or cnt > 0:
                 self.status_banner.setText(f"⚠ LOCKDOWN ACTIVE — {cnt} Emergency Control(s) Enforcing!")
                 self.status_banner.setStyleSheet(
-                    f"background:{T.DANGER_BG}; color:{T.DANGER}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+                    f"background:{T.DANGER_BG}; color:{T.DANGER}; border:1px solid {T.DANGER}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
                 )
             else:
                 self.status_banner.setText("✓ Normal Operations — No Active Emergency Controls")
                 self.status_banner.setStyleSheet(
-                    f"background:{T.SUCCESS_BG}; color:{T.SUCCESS}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+                    f"background:{T.SUCCESS_BG}; color:{T.SUCCESS}; border:1px solid {T.SUCCESS}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
                 )
 
             controls = status.get("active_controls", [])
@@ -345,6 +359,9 @@ class EmergencyControlsDialog(QDialog):
             self.controls_list.setPlainText("\n".join(lines) if lines else "No active controls.")
         else:
             self.status_banner.setText("Backend offline or unreachable.")
+            self.status_banner.setStyleSheet(
+                f"background:{T.WARNING_BG}; color:{T.WARNING}; border:1px solid {T.WARNING}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+            )
 
     def _activate_quick(self, c_type: str, target: str):
         reason, ok = QInputDialog.getText(
@@ -397,21 +414,33 @@ class PolicyManagementView(QWidget):
 
         new_btn = QPushButton("+ New Policy")
         new_btn.setObjectName("primary")
+        new_btn.setStyleSheet(
+            f"background-color:{T.PRIMARY}; color:{T.TEXT_ON_PRIMARY}; border:none; padding:4px 10px; font-weight:600; border-radius:{T.R_SM}px;"
+        )
         new_btn.clicked.connect(self._create_policy)
         toolbar.addWidget(new_btn)
 
         sim_btn = QPushButton("🔬 Policy Simulator")
         sim_btn.setObjectName("secondary")
+        sim_btn.setStyleSheet(
+            f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:{T.R_SM}px;"
+        )
         sim_btn.clicked.connect(lambda: PolicySimulatorDialog(self).exec())
         toolbar.addWidget(sim_btn)
 
         emg_btn = QPushButton("🚨 Emergency Controls")
         emg_btn.setObjectName("danger")
+        emg_btn.setStyleSheet(
+            f"background-color:{T.DANGER}; color:white; border:none; padding:4px 10px; font-weight:600; border-radius:{T.R_SM}px;"
+        )
         emg_btn.clicked.connect(lambda: EmergencyControlsDialog(self).exec())
         toolbar.addWidget(emg_btn)
 
         conflicts_btn = QPushButton("⚠ Conflict Analysis")
         conflicts_btn.setObjectName("secondary")
+        conflicts_btn.setStyleSheet(
+            f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:{T.R_SM}px;"
+        )
         conflicts_btn.clicked.connect(self._check_conflicts)
         toolbar.addWidget(conflicts_btn)
 
@@ -419,6 +448,9 @@ class PolicyManagementView(QWidget):
 
         refresh_btn = QPushButton("⟳ Refresh")
         refresh_btn.setObjectName("secondary")
+        refresh_btn.setStyleSheet(
+            f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:{T.R_SM}px;"
+        )
         refresh_btn.clicked.connect(self.refresh_data)
         toolbar.addWidget(refresh_btn)
 

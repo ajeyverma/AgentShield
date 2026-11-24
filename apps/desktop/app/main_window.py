@@ -56,9 +56,15 @@ class HealthCheckTask(QRunnable):
     def run(self) -> None:
         try:
             health = backend_client.check_health()
-            self.signals.health_result.emit(health is not None)
+            try:
+                self.signals.health_result.emit(health is not None)
+            except RuntimeError:
+                pass
         except Exception:
-            self.signals.health_result.emit(False)
+            try:
+                self.signals.health_result.emit(False)
+            except RuntimeError:
+                pass
 
 
 class MainWindow(QMainWindow):
@@ -76,8 +82,8 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         self.setWindowTitle("AgentShield AI")
-        self.setMinimumSize(1150, 700)
-        self.resize(1280, 800)
+        self.setMinimumSize(1050, 560)
+        self.resize(1180, 640)
 
     # ── Shell layout ─────────────────────────────────────────────────────────
 

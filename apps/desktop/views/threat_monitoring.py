@@ -98,7 +98,7 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
         ev_txt.setText(json.dumps(t.get("evidence"), indent=2))
         ev_txt.setStyleSheet(
             f"color:{T.TEXT}; background:{T.SURFACE_ALT}; border:none;"
-            f"border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px; padding:6px 10px;"
         )
         lay.addWidget(ev_txt)
 

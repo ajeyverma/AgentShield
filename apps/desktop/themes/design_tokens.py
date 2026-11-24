@@ -224,7 +224,7 @@ class T:
                 background-color: {cls.SURFACE};
                 border: 1px solid {cls.BORDER};
                 border-radius: {cls.R_SM}px;
-                padding: 4px 8px;
+                padding: 6px 10px;
                 color: {cls.TEXT};
                 font-size: {cls.FS_SM}px;
                 selection-background-color: {cls.PRIMARY};

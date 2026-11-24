@@ -126,7 +126,7 @@ class PolicyEditorDialog(QDialog):
         self.cond_edit.setPlainText(cond_val)
         self.cond_edit.setMaximumHeight(80)
         self.cond_edit.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px; padding:6px 10px;"
         )
         layout.addWidget(self.cond_edit)
 
@@ -208,7 +208,7 @@ class PolicySimulatorDialog(QDialog):
         grid.addWidget(QLabel("Arguments (JSON):"), 3, 0)
         self.args_edit = QTextEdit('{"command": "cat /etc/passwd"}')
         self.args_edit.setMaximumHeight(70)
-        self.args_edit.setStyleSheet("font-family:monospace;")
+        self.args_edit.setStyleSheet(f"background:{T.SURFACE}; border:1px solid {T.BORDER}; border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px; padding:6px 10px;")
         grid.addWidget(self.args_edit, 3, 1)
 
         layout.addLayout(grid)
@@ -223,7 +223,7 @@ class PolicySimulatorDialog(QDialog):
         self.result_box.setReadOnly(True)
         self.result_box.setMaximumHeight(150)
         self.result_box.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px; padding:6px 10px;"
         )
         layout.addWidget(self.result_box)
 

@@ -75,7 +75,7 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
         args_box.setPlainText(json.dumps(rec.get("result"), indent=2))
         args_box.setMaximumHeight(100)
         args_box.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px; padding:6px 10px;"
         )
         lay.addWidget(args_box)
     elif not is_dict:
@@ -87,7 +87,7 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
         args_box.setPlainText(json.dumps(rec.arguments, indent=2))
         args_box.setMaximumHeight(100)
         args_box.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px; padding:6px 10px;"
         )
         lay.addWidget(args_box)
 

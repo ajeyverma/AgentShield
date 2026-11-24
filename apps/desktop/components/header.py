@@ -1,9 +1,8 @@
 """
 AgentShield AI — Desktop Menu Bar Navigation (Clean Desktop Style).
 
-Standard text-based desktop menu bar without emojis, providing fast navigation
-and clean context header. Connection status and user identity are placed in
-the bottom status bar.
+Standard text-based desktop menu bar without emojis, with a pure white background
+and zero top/bottom padding for a clean native desktop feel.
 """
 from __future__ import annotations
 
@@ -45,7 +44,7 @@ NAV_ITEMS: list[tuple[str, str]] = [
 
 
 class TopNavButton(QPushButton):
-    """Standard desktop menu item button (text-only, flat)."""
+    """Standard desktop menu item button with zero vertical padding."""
 
     def __init__(self, page_id: str, label: str, parent=None):
         super().__init__(parent)
@@ -53,7 +52,7 @@ class TopNavButton(QPushButton):
         self.setText(label)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(28)
+        self.setFixedHeight(26)
         self._apply_style(False)
 
     def _apply_style(self, active: bool):
@@ -61,16 +60,18 @@ class TopNavButton(QPushButton):
             self.setStyleSheet(
                 "QPushButton {"
                 f"  background: {T.PRIMARY}; color: #FFFFFF;"
-                "  border: none; border-radius: 4px;"
-                "  padding: 4px 10px; font-size: 12px; font-weight: 600;"
+                "  border: none; border-radius: 3px;"
+                "  padding: 0px 8px; margin: 0px;"
+                "  font-size: 12px; font-weight: 600;"
                 "}"
             )
         else:
             self.setStyleSheet(
                 "QPushButton {"
                 "  background: transparent; color: #334155;"
-                "  border: none; border-radius: 4px;"
-                "  padding: 4px 10px; font-size: 12px; font-weight: 500;"
+                "  border: none; border-radius: 3px;"
+                "  padding: 0px 8px; margin: 0px;"
+                "  font-size: 12px; font-weight: 500;"
                 "}"
                 "QPushButton:hover {"
                 "  background: #E2E8F0; color: #0F172A;"
@@ -90,7 +91,7 @@ class Header(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(
-            f"background: {T.SURFACE}; border-bottom: 1px solid {T.BORDER};"
+            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER};"
         )
         self._buttons: dict[str, TopNavButton] = {}
         self._active_id: str = "dashboard"
@@ -101,17 +102,17 @@ class Header(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Row 1: Desktop Application Menu Bar ──────────────────────────────
+        # ── Row 1: Desktop Menu Bar (Pure White BG, Zero Vertical Padding) ───
         menu_bar = QWidget()
-        menu_bar.setFixedHeight(36)
+        menu_bar.setFixedHeight(28)
         menu_bar.setStyleSheet(
-            f"background: #F8FAFC; border-bottom: 1px solid {T.BORDER};"
+            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER};"
         )
         menu_lay = QHBoxLayout(menu_bar)
-        menu_lay.setContentsMargins(12, 0, 12, 0)
-        menu_lay.setSpacing(4)
+        menu_lay.setContentsMargins(8, 0, 8, 0)
+        menu_lay.setSpacing(2)
 
-        # Menu items (clean text buttons)
+        # Menu items (clean text buttons, flush top/bottom)
         for page_id, label in NAV_ITEMS:
             btn = TopNavButton(page_id, label)
             btn.clicked.connect(lambda _, pid=page_id: self._on_button_clicked(pid))
@@ -123,12 +124,12 @@ class Header(QWidget):
 
         # ── Row 2: Page Title & Context Bar ──────────────────────────────────
         context_bar = QWidget()
-        context_bar.setFixedHeight(34)
+        context_bar.setFixedHeight(32)
         context_bar.setStyleSheet(
-            f"background: {T.SURFACE}; border-bottom: 1px solid {T.BORDER};"
+            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER};"
         )
         ctx_lay = QHBoxLayout(context_bar)
-        ctx_lay.setContentsMargins(16, 0, 16, 0)
+        ctx_lay.setContentsMargins(12, 0, 12, 0)
         ctx_lay.setSpacing(8)
 
         self._title_lbl = QLabel("Dashboard")

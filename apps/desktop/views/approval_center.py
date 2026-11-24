@@ -270,7 +270,7 @@ class ApprovalCenterView(QWidget):
         self._list_layout.setContentsMargins(0, 0, 0, 0)
         self._list_layout.addStretch()
         scroll.setWidget(self._list_container)
-        root.addWidget(scroll)
+        root.addWidget(scroll, stretch=1)
 
     def refresh_data(self):
         """Fetch real approval requests from backend or fallback to local demo data."""

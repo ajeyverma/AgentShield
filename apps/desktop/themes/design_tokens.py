@@ -101,7 +101,7 @@ class T:
     # ── Layout ───────────────────────────────────────────────────────────────
     SIDEBAR_W   = 220
     HEADER_H    = 56
-    STAT_CARD_H = 100
+    STAT_CARD_H = 56
 
     # ── Chart colours (sequential) ───────────────────────────────────────────
     CHART_ALLOW  = "#16A34A"

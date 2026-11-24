@@ -27,32 +27,34 @@ class StatCard(QFrame):
             f"  border-top: 3px solid {accent_color};"
             f"}} QLabel {{ border: none; }}"
         )
-        self.setMinimumHeight(T.STAT_CARD_H)
+        card_h = 68 if sub_label else 52
+        self.setFixedHeight(card_h)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(T.SP_4, T.SP_4, T.SP_4, T.SP_3)
-        root.setSpacing(4)
+        root.setContentsMargins(T.SP_3, T.SP_2, T.SP_3, T.SP_2)
+        root.setSpacing(1)
 
         self._title_lbl = QLabel(title)
         self._title_lbl.setStyleSheet(
-            f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; font-weight:600;"
-            "letter-spacing:0.4px; text-transform:uppercase; background:transparent; border:none;"
+            f"color:{T.TEXT_SEC}; font-size:{T.FS_XS}px; font-weight:600;"
+            "letter-spacing:0.5px; text-transform:uppercase; background:transparent; border:none;"
         )
 
         self._value_lbl = QLabel(value)
         self._value_lbl.setStyleSheet(
-            f"color:{T.TEXT}; font-size:{T.FS_3XL}px; font-weight:700; background:transparent; border:none;"
+            f"color:{T.TEXT}; font-size:{T.FS_2XL}px; font-weight:700; background:transparent; border:none;"
         )
 
         self._sub_lbl = QLabel(sub_label)
         self._sub_lbl.setStyleSheet(
-            f"color:{T.TEXT_MUTED}; font-size:{T.FS_SM}px; background:transparent; border:none;"
+            f"color:{T.TEXT_MUTED}; font-size:{T.FS_XS}px; background:transparent; border:none;"
         )
         self._sub_lbl.setVisible(bool(sub_label))
 
         root.addWidget(self._title_lbl)
         root.addWidget(self._value_lbl)
-        root.addWidget(self._sub_lbl)
+        if sub_label:
+            root.addWidget(self._sub_lbl)
         root.addStretch()
 
     def set_value(self, value: str) -> None:

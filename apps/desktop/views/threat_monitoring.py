@@ -184,7 +184,7 @@ class ThreatMonitoringView(QWidget):
 
         inner_lay.addStretch()
         scroll.setWidget(inner)
-        root.addWidget(scroll)
+        root.addWidget(scroll, stretch=1)
 
     def _make_finding_card(self, f: dict) -> QFrame:
         severity = f.get("severity", "MEDIUM").capitalize()

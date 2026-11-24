@@ -59,8 +59,8 @@ class TopNavButton(QPushButton):
         if active:
             self.setStyleSheet(
                 "QPushButton {"
-                "  background-color: #2563EB !important;"
-                "  color: #FFFFFF !important;"
+                "  background-color: #E2E8F0 !important;"
+                "  color: #0F172A !important;"
                 "  border: none !important;"
                 "  border-radius: 3px;"
                 "  padding: 0px 8px; margin: 0px;"
@@ -68,19 +68,19 @@ class TopNavButton(QPushButton):
                 "  font-size: 12px; font-weight: 600;"
                 "}"
                 "QPushButton:hover {"
-                "  background-color: #1D4ED8 !important;"
-                "  color: #FFFFFF !important;"
+                "  background-color: #CBD5E1 !important;"
+                "  color: #0F172A !important;"
                 "}"
                 "QPushButton:pressed {"
-                "  background-color: #1E40AF !important;"
-                "  color: #FFFFFF !important;"
+                "  background-color: #94A3B8 !important;"
+                "  color: #0F172A !important;"
                 "}"
             )
         else:
             self.setStyleSheet(
                 "QPushButton {"
                 "  background-color: transparent !important;"
-                "  color: #334155 !important;"
+                "  color: #475569 !important;"
                 "  border: none !important;"
                 "  border-radius: 3px;"
                 "  padding: 0px 8px; margin: 0px;"
@@ -88,12 +88,12 @@ class TopNavButton(QPushButton):
                 "  font-size: 12px; font-weight: 500;"
                 "}"
                 "QPushButton:hover {"
-                "  background-color: #EFF6FF !important;"
-                "  color: #2563EB !important;"
+                "  background-color: #F1F5F9 !important;"
+                "  color: #0F172A !important;"
                 "}"
                 "QPushButton:pressed {"
-                "  background-color: #DBEAFE !important;"
-                "  color: #1D4ED8 !important;"
+                "  background-color: #E2E8F0 !important;"
+                "  color: #0F172A !important;"
                 "}"
             )
 

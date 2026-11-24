@@ -13,15 +13,15 @@ from apps.desktop.themes.design_tokens import T
 
 NAV_ITEMS = [
     # (page_id, icon, label, section_header_before)
-    ("dashboard",         "⊡",  "Dashboard",         "OVERVIEW"),
-    ("agents",            "🤖", "Agent Manager",     None),
-    ("activity",          "⚡", "Live Activity",     None),
-    ("threats",           "🛡",  "Threat Monitoring", None),
-    ("approvals",         "✅", "Approval Center",   None),
-    ("policies",          "📋", "Policy Management", "MANAGEMENT"),
-    ("audit",             "📜", "Audit Logs",        None),
-    ("integrations",      "🔗", "Integrations",      None),
-    ("settings",          "⚙",  "Settings",          None),
+    ("dashboard",         "", "Dashboard",         "OVERVIEW"),
+    ("agents",            "", "Agent Manager",     None),
+    ("activity",          "", "Live Activity",     None),
+    ("threats",           "", "Threat Monitoring", None),
+    ("approvals",         "", "Approval Center",   None),
+    ("policies",          "", "Policy Management", "MANAGEMENT"),
+    ("audit",             "", "Audit Logs",        None),
+    ("integrations",      "", "Integrations",      None),
+    ("settings",          "", "Settings",          None),
 ]
 
 

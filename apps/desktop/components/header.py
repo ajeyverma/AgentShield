@@ -1,8 +1,8 @@
 """
-AgentShield AI — Top Navigation Header (Simplified Layout).
+AgentShield AI — Desktop Menu Bar Navigation (Clean Desktop Style).
 
-Provides full top-menu bar navigation across all 9 application views,
-system connection telemetry, and breadcrumb context.
+Standard text-based desktop menu bar without emojis, providing fast navigation,
+connection status indicator, and context header.
 """
 from __future__ import annotations
 
@@ -30,51 +30,51 @@ PAGE_META: dict[str, tuple[str, str]] = {
     "settings":     ("Settings",           "Application configuration and backend connection settings"),
 }
 
-NAV_ITEMS: list[tuple[str, str, str]] = [
-    ("dashboard",    "⊡", "Dashboard"),
-    ("agents",       "🤖", "Agents"),
-    ("activity",     "⚡", "Activity"),
-    ("threats",      "🛡", "Threats"),
-    ("approvals",    "✅", "Approvals"),
-    ("policies",     "📋", "Policies"),
-    ("audit",        "📜", "Audit"),
-    ("integrations", "🔗", "Integrations"),
-    ("settings",     "⚙", "Settings"),
+# Standard text-only navigation menu items (zero emojis)
+NAV_ITEMS: list[tuple[str, str]] = [
+    ("dashboard",    "Dashboard"),
+    ("agents",       "Agents"),
+    ("activity",     "Activity"),
+    ("threats",      "Threats"),
+    ("approvals",    "Approvals"),
+    ("policies",     "Policies"),
+    ("audit",        "Audit Logs"),
+    ("integrations", "Integrations"),
+    ("settings",     "Settings"),
 ]
 
 
 class TopNavButton(QPushButton):
-    """Top navigation tab button."""
+    """Standard desktop menu item button (text-only, flat)."""
 
-    def __init__(self, page_id: str, icon: str, label: str, parent=None):
+    def __init__(self, page_id: str, label: str, parent=None):
         super().__init__(parent)
         self.page_id = page_id
-        self.setText(f"{icon}  {label}")
+        self.setText(label)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(34)
+        self.setFixedHeight(28)
         self._apply_style(False)
 
     def _apply_style(self, active: bool):
         if active:
             self.setStyleSheet(
-                f"QPushButton {{"
-                f"  background:{T.PRIMARY}; color:{T.TEXT_ON_PRIMARY};"
-                f"  border:1px solid {T.PRIMARY}; border-radius:{T.R_MD}px;"
-                f"  padding: 6px 12px; font-size:{T.FS_SM}px; font-weight:700;"
-                f"}}"
+                "QPushButton {"
+                f"  background: {T.PRIMARY}; color: #FFFFFF;"
+                "  border: none; border-radius: 4px;"
+                "  padding: 4px 10px; font-size: 12px; font-weight: 600;"
+                "}"
             )
         else:
             self.setStyleSheet(
-                f"QPushButton {{"
-                f"  background:transparent; color:{T.TEXT_SEC};"
-                f"  border:1px solid transparent; border-radius:{T.R_MD}px;"
-                f"  padding: 6px 12px; font-size:{T.FS_SM}px; font-weight:600;"
-                f"}}"
-                f"QPushButton:hover {{"
-                f"  background:{T.SURFACE_ALT}; color:{T.TEXT};"
-                f"  border:1px solid {T.BORDER};"
-                f"}}"
+                "QPushButton {"
+                "  background: transparent; color: #334155;"
+                "  border: none; border-radius: 4px;"
+                "  padding: 4px 10px; font-size: 12px; font-weight: 500;"
+                "}"
+                "QPushButton:hover {"
+                "  background: #E2E8F0; color: #0F172A;"
+                "}"
             )
 
     def set_active(self, active: bool):
@@ -83,14 +83,14 @@ class TopNavButton(QPushButton):
 
 
 class Header(QWidget):
-    """Top navigation and application header bar."""
+    """Standard desktop application top menu bar and context header."""
 
     page_changed = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(
-            f"background:{T.SURFACE}; border-bottom:1px solid {T.BORDER};"
+            f"background: {T.SURFACE}; border-bottom: 1px solid {T.BORDER};"
         )
         self._buttons: dict[str, TopNavButton] = {}
         self._active_id: str = "dashboard"
@@ -101,99 +101,85 @@ class Header(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Row 1: Primary Top Menu Bar ──────────────────────────────────────
-        top_bar = QWidget()
-        top_bar.setFixedHeight(54)
-        top_bar.setStyleSheet(f"background:{T.SURFACE}; border-bottom:1px solid {T.BORDER};")
-        top_lay = QHBoxLayout(top_bar)
-        top_lay.setContentsMargins(T.SP_4, 0, T.SP_4, 0)
-        top_lay.setSpacing(T.SP_2)
-
-        # Brand / Logo
-        brand_frame = QWidget()
-        brand_frame.setStyleSheet("background:transparent;")
-        brand_lay = QHBoxLayout(brand_frame)
-        brand_lay.setContentsMargins(0, 0, T.SP_3, 0)
-        brand_lay.setSpacing(T.SP_2)
-
-        logo_title = QLabel("🛡️ AgentShield")
-        logo_title.setStyleSheet(
-            f"color:{T.TEXT}; font-size:{T.FS_LG}px; font-weight:800; background:transparent;"
+        # ── Row 1: Desktop Application Menu Bar ──────────────────────────────
+        menu_bar = QWidget()
+        menu_bar.setFixedHeight(36)
+        menu_bar.setStyleSheet(
+            f"background: #F8FAFC; border-bottom: 1px solid {T.BORDER};"
         )
-        badge = QLabel("GATEWAY")
-        badge.setStyleSheet(
-            f"color:{T.PRIMARY}; background:{T.PRIMARY_LIGHT}; border:1px solid {T.PRIMARY};"
-            f"border-radius:{T.R_SM}px; padding:2px 6px; font-size:9px; font-weight:700;"
+        menu_lay = QHBoxLayout(menu_bar)
+        menu_lay.setContentsMargins(12, 0, 12, 0)
+        menu_lay.setSpacing(4)
+
+        # Brand name (clean text, no emoji)
+        brand_lbl = QLabel("AgentShield AI")
+        brand_lbl.setStyleSheet(
+            f"color: {T.TEXT}; font-size: 12px; font-weight: 700; padding-right: 6px;"
         )
-        brand_lay.addWidget(logo_title)
-        brand_lay.addWidget(badge)
-        top_lay.addWidget(brand_frame)
+        menu_lay.addWidget(brand_lbl)
 
-        # Separator
-        sep1 = QFrame()
-        sep1.setFrameShape(QFrame.Shape.VLine)
-        sep1.setStyleSheet(f"color:{T.BORDER}; background:{T.BORDER}; max-width:1px;")
-        sep1.setFixedHeight(24)
-        top_lay.addWidget(sep1)
-        top_lay.addSpacing(T.SP_2)
+        # Vertical separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setStyleSheet(f"color: {T.BORDER}; background: {T.BORDER}; max-width: 1px;")
+        sep.setFixedHeight(18)
+        menu_lay.addWidget(sep)
+        menu_lay.addSpacing(4)
 
-        # Navigation Options in the Top Menu Bar
-        for page_id, icon, label in NAV_ITEMS:
-            btn = TopNavButton(page_id, icon, label)
+        # Menu items (clean text buttons)
+        for page_id, label in NAV_ITEMS:
+            btn = TopNavButton(page_id, label)
             btn.clicked.connect(lambda _, pid=page_id: self._on_button_clicked(pid))
             self._buttons[page_id] = btn
-            top_lay.addWidget(btn)
+            menu_lay.addWidget(btn)
 
-        top_lay.addStretch()
+        menu_lay.addStretch()
 
-        # Backend Connection Indicator
-        self._conn_indicator = QLabel("● Not Connected")
+        # Connection status badge (text only, clean)
+        self._conn_indicator = QLabel("Connected")
         self._conn_indicator.setStyleSheet(
-            f"color:{T.TEXT_MUTED}; background:{T.SURFACE_ALT}; border:1px solid {T.BORDER};"
-            f"border-radius:{T.R_LG}px; padding:4px 12px; font-size:{T.FS_SM}px; font-weight:600;"
+            f"color: {T.SUCCESS}; background: {T.SUCCESS_BG}; border: 1px solid {T.SUCCESS};"
+            "border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
         )
-        self._conn_indicator.setToolTip(
-            "Backend connection status.\n"
-            "Green indicates an active link to the AgentShield FastAPI Security Gateway."
-        )
-        top_lay.addWidget(self._conn_indicator)
+        menu_lay.addWidget(self._conn_indicator)
 
-        # User Button
-        user_btn = QPushButton("👤 Admin")
-        user_btn.setObjectName("secondary")
-        user_btn.setFixedHeight(32)
+        # User profile button (text only, clean)
+        user_btn = QPushButton("Admin")
+        user_btn.setFixedHeight(24)
         user_btn.setStyleSheet(
-            f"QPushButton {{"
-            f"  background:{T.SURFACE_ALT}; color:{T.TEXT}; border:1px solid {T.BORDER};"
-            f"  border-radius:{T.R_MD}px; padding:4px 10px; font-size:{T.FS_SM}px; font-weight:600;"
-            f"}}"
-            f"QPushButton:hover {{ background:{T.BORDER}; }}"
+            "QPushButton {"
+            f"  background: transparent; color: {T.TEXT_SEC}; border: 1px solid {T.BORDER};"
+            "  border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 500;"
+            "}"
+            f"QPushButton:hover {{ background: {T.BORDER}; color: {T.TEXT}; }}"
         )
-        top_lay.addWidget(user_btn)
-        root.addWidget(top_bar)
+        menu_lay.addWidget(user_btn)
+        root.addWidget(menu_bar)
 
-        # ── Row 2: Sub-Header Context Bar ────────────────────────────────────
+        # ── Row 2: Page Title & Context Bar ──────────────────────────────────
         context_bar = QWidget()
-        context_bar.setFixedHeight(38)
-        context_bar.setStyleSheet(f"background:{T.SURFACE_ALT}; border-bottom:1px solid {T.BORDER};")
+        context_bar.setFixedHeight(34)
+        context_bar.setStyleSheet(
+            f"background: {T.SURFACE}; border-bottom: 1px solid {T.BORDER};"
+        )
         ctx_lay = QHBoxLayout(context_bar)
-        ctx_lay.setContentsMargins(T.SP_5, 0, T.SP_5, 0)
-        ctx_lay.setSpacing(T.SP_2)
+        ctx_lay.setContentsMargins(16, 0, 16, 0)
+        ctx_lay.setSpacing(8)
 
         self._title_lbl = QLabel("Dashboard")
         self._title_lbl.setStyleSheet(
-            f"color:{T.TEXT}; font-size:{T.FS_MD}px; font-weight:700; background:transparent;"
+            f"color: {T.TEXT}; font-size: 13px; font-weight: 700;"
         )
-        ctx_div = QLabel("—")
-        ctx_div.setStyleSheet(f"color:{T.TEXT_MUTED}; background:transparent;")
+        ctx_sep = QLabel("|")
+        ctx_sep.setStyleSheet(f"color: {T.TEXT_MUTED}; font-size: 12px;")
 
         self._desc_lbl = QLabel("Security overview and activity summary")
         self._desc_lbl.setStyleSheet(
-            f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent;"
+            f"color: {T.TEXT_SEC}; font-size: 12px;"
         )
 
         ctx_lay.addWidget(self._title_lbl)
-        ctx_lay.addWidget(ctx_div)
+        ctx_lay.addWidget(ctx_sep)
         ctx_lay.addWidget(self._desc_lbl)
         ctx_lay.addStretch()
 
@@ -221,14 +207,14 @@ class Header(QWidget):
 
     def set_connected(self, connected: bool):
         if connected:
-            self._conn_indicator.setText("● Connected")
+            self._conn_indicator.setText("Connected")
             self._conn_indicator.setStyleSheet(
-                f"color:{T.SUCCESS}; background:{T.SUCCESS_BG}; border:1px solid {T.SUCCESS};"
-                f"border-radius:{T.R_LG}px; padding:4px 12px; font-size:{T.FS_SM}px; font-weight:600;"
+                f"color: {T.SUCCESS}; background: {T.SUCCESS_BG}; border: 1px solid {T.SUCCESS};"
+                "border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
             )
         else:
-            self._conn_indicator.setText("● Not Connected")
+            self._conn_indicator.setText("Disconnected")
             self._conn_indicator.setStyleSheet(
-                f"color:{T.TEXT_MUTED}; background:{T.SURFACE_ALT}; border:1px solid {T.BORDER};"
-                f"border-radius:{T.R_LG}px; padding:4px 12px; font-size:{T.FS_SM}px; font-weight:600;"
+                f"color: {T.TEXT_MUTED}; background: {T.SURFACE_ALT}; border: 1px solid {T.BORDER};"
+                "border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
             )

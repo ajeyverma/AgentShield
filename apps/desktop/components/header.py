@@ -111,21 +111,6 @@ class Header(QWidget):
         menu_lay.setContentsMargins(12, 0, 12, 0)
         menu_lay.setSpacing(4)
 
-        # Brand name (clean text, no emoji)
-        brand_lbl = QLabel("AgentShield AI")
-        brand_lbl.setStyleSheet(
-            f"color: {T.TEXT}; font-size: 12px; font-weight: 700; padding-right: 6px;"
-        )
-        menu_lay.addWidget(brand_lbl)
-
-        # Vertical separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setStyleSheet(f"color: {T.BORDER}; background: {T.BORDER}; max-width: 1px;")
-        sep.setFixedHeight(18)
-        menu_lay.addWidget(sep)
-        menu_lay.addSpacing(4)
-
         # Menu items (clean text buttons)
         for page_id, label in NAV_ITEMS:
             btn = TopNavButton(page_id, label)

@@ -150,6 +150,9 @@ class Sidebar(QWidget):
         self._set_active(page_id)
         self.page_changed.emit(page_id)
 
+    def set_active(self, page_id: str):
+        self._set_active(page_id)
+
     def _set_active(self, page_id: str):
         if self._active_id in self._buttons:
             self._buttons[self._active_id].set_active(False)

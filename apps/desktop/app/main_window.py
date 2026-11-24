@@ -74,40 +74,35 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         self.setWindowTitle("AgentShield AI")
-        self.setMinimumSize(1100, 700)
+        self.setMinimumSize(1150, 700)
         self.resize(1280, 800)
 
     # ── Shell layout ─────────────────────────────────────────────────────────
 
     def _build_shell(self) -> None:
-        """Build the top-level horizontal layout: sidebar | right panel."""
+        """Build the clean top-navigation layout: Top Menu Bar Header | Content Stack."""
         root = QWidget()
         root.setStyleSheet(f"background:{T.BG_APP};")
-        root_lay = QHBoxLayout(root)
+        root_lay = QVBoxLayout(root)
         root_lay.setContentsMargins(0, 0, 0, 0)
         root_lay.setSpacing(0)
 
-        # ── Sidebar ──────────────────────────────────────────────────────────
-        self._sidebar = Sidebar()
-        self._sidebar.page_changed.connect(self._on_page_changed)
-        root_lay.addWidget(self._sidebar)
-
-        # ── Right panel (header + content stack) ─────────────────────────────
-        right_panel = QWidget()
-        right_panel.setStyleSheet(f"background:{T.BG_APP};")
-        right_lay = QVBoxLayout(right_panel)
-        right_lay.setContentsMargins(0, 0, 0, 0)
-        right_lay.setSpacing(0)
-
+        # ── Top Navigation Header ────────────────────────────────────────────
         self._header = Header()
-        right_lay.addWidget(self._header)
+        self._header.page_changed.connect(self._on_page_changed)
+        root_lay.addWidget(self._header)
 
+        # ── Full-width Content Stack ─────────────────────────────────────────
         self._stack = QStackedWidget()
         self._stack.setStyleSheet(f"background:{T.BG_APP};")
-        right_lay.addWidget(self._stack, stretch=1)
+        root_lay.addWidget(self._stack, stretch=1)
 
-        root_lay.addWidget(right_panel, stretch=1)
         self.setCentralWidget(root)
+
+        # Retain _sidebar instance for backward compatibility (hidden)
+        self._sidebar = Sidebar()
+        self._sidebar.hide()
+        self._sidebar.page_changed.connect(self._on_page_changed)
 
         # ── Populate stack ───────────────────────────────────────────────────
         self._views: dict[str, QWidget] = {}

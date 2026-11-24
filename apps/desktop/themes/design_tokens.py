@@ -149,6 +149,7 @@ class T:
             QLabel {{
                 background: transparent;
                 color: {cls.TEXT};
+                border: none;
             }}
             QPushButton {{
                 background-color: {cls.PRIMARY};

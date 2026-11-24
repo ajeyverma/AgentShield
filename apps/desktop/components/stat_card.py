@@ -36,17 +36,17 @@ class StatCard(QFrame):
         self._title_lbl = QLabel(title)
         self._title_lbl.setStyleSheet(
             f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; font-weight:600;"
-            "letter-spacing:0.4px; text-transform:uppercase; background:transparent;"
+            "letter-spacing:0.4px; text-transform:uppercase; background:transparent; border:none;"
         )
 
         self._value_lbl = QLabel(value)
         self._value_lbl.setStyleSheet(
-            f"color:{T.TEXT}; font-size:{T.FS_3XL}px; font-weight:700; background:transparent;"
+            f"color:{T.TEXT}; font-size:{T.FS_3XL}px; font-weight:700; background:transparent; border:none;"
         )
 
         self._sub_lbl = QLabel(sub_label)
         self._sub_lbl.setStyleSheet(
-            f"color:{T.TEXT_MUTED}; font-size:{T.FS_SM}px; background:transparent;"
+            f"color:{T.TEXT_MUTED}; font-size:{T.FS_SM}px; background:transparent; border:none;"
         )
         self._sub_lbl.setVisible(bool(sub_label))
 

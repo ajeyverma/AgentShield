@@ -111,5 +111,5 @@ class MCPGatewayView(QWidget):
             f"QFrame {{ background:{T.SURFACE}; border:1px solid {T.BORDER}; border-radius:{T.R_LG}px; }}"
         )
         lbl = QLabel(f"<b>{title}</b>")
-        lbl.setStyleSheet(f"color:{T.TEXT_PRIMARY}; font-size:{T.FS_LG}px; padding: 4px;")
+        lbl.setStyleSheet(f"color:{T.TEXT_PRIMARY}; font-size:{T.FS_LG}px; padding: 4px; border:none;")
         return frame

@@ -126,7 +126,7 @@ class ApprovalDetailDialog(QDialog):
         args_box.setPlainText(json.dumps(args_data, indent=2, default=str))
         args_box.setMaximumHeight(90)
         args_box.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:1px solid {T.BORDER}; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
         )
         layout.addWidget(args_box)
 
@@ -145,7 +145,7 @@ class ApprovalDetailDialog(QDialog):
             threats_box.setPlainText("\n".join(lines))
             threats_box.setMaximumHeight(80)
             threats_box.setStyleSheet(
-                f"background:{T.WARNING_BG}; border:1px solid {T.WARNING}; font-size:{T.FS_SM}px; color:{T.TEXT};"
+                f"background:{T.WARNING_BG}; border:none; font-size:{T.FS_SM}px; color:{T.TEXT};"
             )
             layout.addWidget(threats_box)
 
@@ -156,7 +156,7 @@ class ApprovalDetailDialog(QDialog):
             rev_comment = self.data.get("review_comment") or self.data.get("rejection_reason") or "-"
             rev_box = QLabel(f"Resolved by {rev_by} at {rev_at}\nNote: {rev_comment}")
             rev_box.setStyleSheet(
-                f"background:{T.SURFACE_ALT}; border:1px solid {T.BORDER}; padding:{T.SP_2}px; border-radius:{T.R_SM}px; font-size:{T.FS_SM}px; color:{T.TEXT};"
+                f"background:{T.SURFACE_ALT}; border:none; padding:{T.SP_2}px; border-radius:{T.R_SM}px; font-size:{T.FS_SM}px; color:{T.TEXT};"
             )
             layout.addWidget(rev_box)
 

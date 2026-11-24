@@ -82,7 +82,7 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
         t_lbl = QLabel(text)
         t_lbl.setWordWrap(True)
         t_lbl.setStyleSheet(
-            f"color:{T.TEXT}; background:{T.SURFACE_ALT}; border:1px solid {T.BORDER};"
+            f"color:{T.TEXT}; background:{T.SURFACE_ALT}; border:none;"
             f"border-radius:{T.R_SM}px; padding:{T.SP_3}px;"
         )
         lay.addWidget(t_lbl)
@@ -97,7 +97,7 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
         ev_txt.setFixedHeight(90)
         ev_txt.setText(json.dumps(t.get("evidence"), indent=2))
         ev_txt.setStyleSheet(
-            f"color:{T.TEXT}; background:{T.SURFACE_ALT}; border:1px solid {T.BORDER};"
+            f"color:{T.TEXT}; background:{T.SURFACE_ALT}; border:none;"
             f"border-radius:{T.R_SM}px; font-family:monospace; font-size:{T.FS_SM}px;"
         )
         lay.addWidget(ev_txt)

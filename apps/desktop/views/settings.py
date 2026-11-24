@@ -35,7 +35,7 @@ def _readonly(value: str) -> QLineEdit:
     le = QLineEdit(value)
     le.setReadOnly(True)
     le.setStyleSheet(
-        f"background:{T.SURFACE_ALT}; color:{T.TEXT_SEC}; border:1px solid {T.BORDER};"
+        f"background:{T.SURFACE_ALT}; color:{T.TEXT_SEC}; border:none;"
         f"border-radius:{T.R_MD}px; padding:6px 10px;"
     )
     le.setMaximumWidth(380)

@@ -125,7 +125,7 @@ class PolicyEditorDialog(QDialog):
         self.cond_edit.setPlainText(cond_val)
         self.cond_edit.setMaximumHeight(80)
         self.cond_edit.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:1px solid {T.BORDER}; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
         )
         layout.addWidget(self.cond_edit)
 
@@ -184,7 +184,7 @@ class PolicySimulatorDialog(QDialog):
             "Zero real tools are executed. All resources remain untouched."
         )
         info.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:1px solid {T.BORDER}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; color:{T.TEXT};"
+            f"background:{T.SURFACE_ALT}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; color:{T.TEXT};"
         )
         layout.addWidget(info)
 
@@ -221,7 +221,7 @@ class PolicySimulatorDialog(QDialog):
         self.result_box.setReadOnly(True)
         self.result_box.setMaximumHeight(150)
         self.result_box.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:1px solid {T.BORDER}; font-family:monospace; font-size:{T.FS_SM}px;"
+            f"background:{T.SURFACE_ALT}; border:none; font-family:monospace; font-size:{T.FS_SM}px;"
         )
         layout.addWidget(self.result_box)
 
@@ -289,7 +289,7 @@ class EmergencyControlsDialog(QDialog):
 
         self.status_banner = QLabel("Checking lockdown status...")
         self.status_banner.setStyleSheet(
-            f"background:{T.SURFACE_ALT}; border:1px solid {T.BORDER}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+            f"background:{T.SURFACE_ALT}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
         )
         layout.addWidget(self.status_banner)
 
@@ -330,12 +330,12 @@ class EmergencyControlsDialog(QDialog):
             if is_active or cnt > 0:
                 self.status_banner.setText(f"⚠ LOCKDOWN ACTIVE — {cnt} Emergency Control(s) Enforcing!")
                 self.status_banner.setStyleSheet(
-                    f"background:{T.DANGER_BG}; color:{T.DANGER}; border:1px solid {T.DANGER}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+                    f"background:{T.DANGER_BG}; color:{T.DANGER}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
                 )
             else:
                 self.status_banner.setText("✓ Normal Operations — No Active Emergency Controls")
                 self.status_banner.setStyleSheet(
-                    f"background:{T.SUCCESS_BG}; color:{T.SUCCESS}; border:1px solid {T.SUCCESS}; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
+                    f"background:{T.SUCCESS_BG}; color:{T.SUCCESS}; border:none; padding:{T.SP_3}px; border-radius:{T.R_SM}px; font-weight:700;"
                 )
 
             controls = status.get("active_controls", [])

@@ -114,7 +114,7 @@ class Header(QFrame):
         self.setStyleSheet(
             "QFrame {"
             "  background-color: #FFFFFF !important;"
-            f"  border-bottom: 1px solid {T.BORDER};"
+            "  border: none !important;"
             "  margin: 0px; padding: 0px;"
             "}"
         )

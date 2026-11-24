@@ -30,7 +30,7 @@ class PageHeader(QWidget):
 
         title_lbl = QLabel(title)
         title_lbl.setStyleSheet(
-            f"color:{T.TEXT}; font-size:{T.FS_XL}px; font-weight:700; background:transparent;"
+            f"color:{T.TEXT}; font-size:{T.FS_XL}px; font-weight:700; background:transparent; border:none;"
         )
         title_row.addWidget(title_lbl)
 
@@ -38,7 +38,7 @@ class PageHeader(QWidget):
             note = QLabel(f"⚠ {demo_note}")
             note.setStyleSheet(
                 f"color:{T.WARNING}; background:{T.WARNING_BG};"
-                f"border:1px solid {T.WARNING}; border-radius:{T.R_SM}px;"
+                f"border:none; border-radius:{T.R_SM}px;"
                 f"padding:2px 10px; font-size:{T.FS_SM}px; font-weight:600;"
             )
             title_row.addWidget(note)
@@ -49,7 +49,7 @@ class PageHeader(QWidget):
         if description:
             desc_lbl = QLabel(description)
             desc_lbl.setStyleSheet(
-                f"color:{T.TEXT_SEC}; font-size:{T.FS_MD}px; background:transparent;"
+                f"color:{T.TEXT_SEC}; font-size:{T.FS_MD}px; background:transparent; border:none;"
             )
             desc_lbl.setWordWrap(True)
             root.addWidget(desc_lbl)

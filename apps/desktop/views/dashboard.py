@@ -26,7 +26,7 @@ def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
     if title:
         lbl = QLabel(title)
         lbl.setStyleSheet(
-            f"color:{T.TEXT}; font-size:{T.FS_MD}px; font-weight:700; background:transparent;"
+            f"color:{T.TEXT}; font-size:{T.FS_MD}px; font-weight:700; background:transparent; border:none;"
         )
         lay.addWidget(lbl)
     return frame, lay

@@ -99,15 +99,17 @@ class DashboardView(QWidget):
         stats_row = QHBoxLayout()
         stats_row.setSpacing(T.SP_4)
         s = self._stats
+        self._stat_cards = {}
         cards = [
-            ("Total Agents",      str(s["total_agents"]),      "Connected agent connectors", T.PRIMARY),
-            ("Active Agents",     str(s["active_agents"]),      "Currently processing tasks", T.SUCCESS),
-            ("Actions Today",     str(s["actions_today"]),      "Security evaluations",        T.INFO),
-            ("Blocked Actions",   str(s["blocked_today"]),      "Prevented by policy",         T.DANGER),
-            ("Pending Approvals", str(s["pending_approvals"]),  "Awaiting human decision",     T.WARNING),
+            ("total_agents",      "Total Agents",      str(s["total_agents"]),      "Connected agent connectors", T.PRIMARY),
+            ("active_agents",     "Active Agents",     str(s["active_agents"]),      "Currently processing tasks", T.SUCCESS),
+            ("actions_today",     "Actions Today",     str(s["actions_today"]),      "Security evaluations",        T.INFO),
+            ("blocked_today",     "Blocked Actions",   str(s["blocked_today"]),      "Prevented by policy",         T.DANGER),
+            ("pending_approvals", "Pending Approvals", str(s["pending_approvals"]),  "Awaiting human decision",     T.WARNING),
         ]
-        for title, val, sub, col in cards:
+        for key, title, val, sub, col in cards:
             c = StatCard(title, val, sub, accent_color=col)
+            self._stat_cards[key] = c
             stats_row.addWidget(c)
         lay.addLayout(stats_row)
 
@@ -136,12 +138,12 @@ class DashboardView(QWidget):
 
         # Donut chart
         donut_frame, donut_lay = _card("Decision Distribution")
-        donut = DonutChartWidget([
+        self._donut = DonutChartWidget([
             ("Allow",    s["allow_count"],  T.CHART_ALLOW),
             ("Block",    s["block_count"],  T.CHART_BLOCK),
             ("Ask Human",s["ask_count"],    T.CHART_ASK),
         ])
-        donut_lay.addWidget(donut)
+        donut_lay.addWidget(self._donut)
         charts_row.addWidget(donut_frame, 2)
 
         lay.addLayout(charts_row)
@@ -161,10 +163,31 @@ class DashboardView(QWidget):
             f"QTableWidget::item:alternate {{ background:{T.SURFACE_ALT}; }}"
             f"QTableWidget::item {{ padding:6px 12px; }}"
         )
+        self._table = table
+        self._populate_activity_table(table)
 
+        table.setMaximumHeight(320)
+        act_lay.addWidget(table)
+        lay.addWidget(act_frame)
+
+        # ── Recent threats ──────────────────────────────────────────────────
+        thr_frame, thr_lay = _card("Recent Security Events")
+        self._thr_lay = thr_lay
+        self._populate_threats_list(thr_lay)
+
+        lay.addWidget(thr_frame)
+        lay.addStretch()
+
+        scroll.setWidget(content)
+        root.addWidget(scroll)
+
+    def _populate_activity_table(self, table: QTableWidget):
+        table.setRowCount(0)
         real_executions = []
         if backend_client.is_connected:
             resp = backend_client.list_executions(size=8)
+            if not resp or not resp.get("items"):
+                resp = backend_client.get_activity(size=8)
             if resp and "items" in resp:
                 real_executions = resp["items"]
 
@@ -175,14 +198,14 @@ class DashboardView(QWidget):
                 table.setItem(r, 0, QTableWidgetItem(str(rec.get("created_at", ""))[:19]))
                 table.setItem(r, 1, QTableWidgetItem(str(rec.get("agent_id", ""))[:12]))
                 table.setItem(r, 2, QTableWidgetItem(str(rec.get("tool_name", ""))))
-                table.setItem(r, 3, QTableWidgetItem(str(rec.get("action_name", ""))))
+                table.setItem(r, 3, QTableWidgetItem(str(rec.get("operation") or rec.get("action_name", ""))))
                 # Decision badge
                 dec_str = str(rec.get("decision", "ALLOW"))
                 dec = DecisionBadge(dec_str)
                 table.setCellWidget(r, 4, dec)
                 table.setItem(r, 4, QTableWidgetItem(dec_str))
                 # Status badge
-                st_str = str(rec.get("status", "COMPLETED"))
+                st_str = str(rec.get("execution_status") or rec.get("status", "COMPLETED"))
                 sb = StatusBadge(st_str)
                 table.setCellWidget(r, 5, sb)
                 table.setItem(r, 5, QTableWidgetItem(st_str))
@@ -194,15 +217,19 @@ class DashboardView(QWidget):
             table.setItem(0, 0, empty_item)
             table.setSpan(0, 0, 1, 6)
 
-        table.setMaximumHeight(320)
-        act_lay.addWidget(table)
-        lay.addWidget(act_frame)
+    def _populate_threats_list(self, thr_lay: QVBoxLayout):
+        # Clear existing items except layout title if any
+        while thr_lay.count() > 1:
+            item = thr_lay.takeAt(1)
+            if item.widget():
+                item.widget().setParent(None)
+                item.widget().deleteLater()
 
-        # ── Recent threats ──────────────────────────────────────────────────
-        thr_frame, thr_lay = _card("Recent Security Events")
         real_threats = []
         if backend_client.is_connected:
-            t_resp = backend_client.get_threats()
+            t_resp = backend_client.get_threat_findings(size=8)
+            if not t_resp or (isinstance(t_resp, dict) and not t_resp.get("items")):
+                t_resp = backend_client.get_threats()
             if t_resp:
                 real_threats = t_resp if isinstance(t_resp, list) else t_resp.get("items", [])
 
@@ -244,8 +271,59 @@ class DashboardView(QWidget):
             no_thr.setAlignment(Qt.AlignmentFlag.AlignCenter)
             thr_lay.addWidget(no_thr)
 
-        lay.addWidget(thr_frame)
-        lay.addStretch()
+    def refresh_data(self):
+        try:
+            live = backend_client.get_metrics_summary()
+            if live and "counters" in live:
+                c = live["counters"]
+                g = live.get("gauges", {})
+                if "security.requests.total" in c:
+                    self._stats["actions_today"] = c["security.requests.total"]
+                if "security.decisions.BLOCK" in c:
+                    self._stats["blocked_today"] = c["security.decisions.BLOCK"]
+                if "security.decisions.ALLOW" in c:
+                    self._stats["allow_count"] = c["security.decisions.ALLOW"]
+                if "security.decisions.BLOCK" in c:
+                    self._stats["block_count"] = c["security.decisions.BLOCK"]
+                if "security.decisions.ASK_HUMAN" in c:
+                    self._stats["ask_count"] = c["security.decisions.ASK_HUMAN"]
+                if "security.alerts.active" in g:
+                    self._stats["pending_approvals"] = int(g["security.alerts.active"])
 
-        scroll.setWidget(content)
-        root.addWidget(scroll)
+            # Fallback to activity counts if metrics counters are 0
+            act = backend_client.get_activity(size=100)
+            if act and "items" in act and act["items"]:
+                items = act["items"]
+                if self._stats["actions_today"] == 0:
+                    self._stats["actions_today"] = len(items)
+                if self._stats["blocked_today"] == 0:
+                    self._stats["blocked_today"] = sum(1 for it in items if str(it.get("decision", "")).upper() == "BLOCK")
+                if self._stats["allow_count"] == 0 and self._stats["block_count"] == 0:
+                    self._stats["allow_count"] = sum(1 for it in items if str(it.get("decision", "")).upper() == "ALLOW")
+                    self._stats["block_count"] = sum(1 for it in items if str(it.get("decision", "")).upper() == "BLOCK")
+                    self._stats["ask_count"] = sum(1 for it in items if str(it.get("decision", "")).upper() == "ASK_HUMAN")
+
+            agents = backend_client.get_agents()
+            if agents:
+                self._stats["total_agents"] = len(agents)
+                self._stats["active_agents"] = sum(1 for a in agents if str(a.get("status", "")).lower() == "active")
+
+            if hasattr(self, "_stat_cards"):
+                for k, card in self._stat_cards.items():
+                    if k in self._stats:
+                        card.set_value(str(self._stats[k]))
+
+            if hasattr(self, "_donut"):
+                self._donut.update_data([
+                    ("Allow",     self._stats["allow_count"],  T.CHART_ALLOW),
+                    ("Block",     self._stats["block_count"],  T.CHART_BLOCK),
+                    ("Ask Human", self._stats["ask_count"],    T.CHART_ASK),
+                ])
+
+            if hasattr(self, "_table"):
+                self._populate_activity_table(self._table)
+
+            if hasattr(self, "_thr_lay"):
+                self._populate_threats_list(self._thr_lay)
+        except Exception:
+            pass

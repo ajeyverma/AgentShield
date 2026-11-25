@@ -143,5 +143,63 @@ class SecurityMetricsCollector:
                 },
             }
 
+    def get_metrics_summary(self) -> dict[str, Any]:
+        """Return standardized metric counters, gauges, and latency percentiles for the API."""
+        with self._lock:
+            lats = sorted(self._latencies_ms) if self._latencies_ms else [0.0]
+            gw_lats = sorted(self._gateway_latencies_ms) if self._gateway_latencies_ms else [0.0]
+
+            def p(arr: list[float], pct: float) -> float:
+                if not arr:
+                    return 0.0
+                idx = int(len(arr) * pct)
+                idx = min(idx, len(arr) - 1)
+                return round(arr[idx], 2)
+
+            total_appr_decided = self._approvals_granted + self._approvals_rejected
+            approval_rate = (
+                round((self._approvals_granted / total_appr_decided) * 100.0, 1)
+                if total_appr_decided > 0
+                else 100.0
+            )
+            error_rate = (
+                round((self._errors_total / self._requests_total * 100.0), 2)
+                if self._requests_total > 0
+                else 0.0
+            )
+
+            total_requests = sum(self._decisions.values()) or self._requests_total
+            return {
+                "counters": {
+                    "security.requests.total": total_requests,
+                    "security.decisions.ALLOW": self._decisions.get("ALLOW", 0),
+                    "security.decisions.BLOCK": self._decisions.get("BLOCK", 0),
+                    "security.decisions.ASK_HUMAN": self._decisions.get("ASK_HUMAN", 0),
+                    "security.threats.critical": self._threats_by_severity.get("CRITICAL", 0),
+                    "security.threats.high": self._threats_by_severity.get("HIGH", 0),
+                    "security.approvals.requested": self._approvals_requested,
+                    "security.approvals.granted": self._approvals_granted,
+                    "security.approvals.rejected": self._approvals_rejected,
+                    "security.errors.total": self._errors_total,
+                },
+                "gauges": {
+                    "security.alerts.active": float(max(0, self._approvals_requested - self._approvals_granted - self._approvals_rejected - self._approvals_expired)),
+                    "security.approvals.rate": float(approval_rate),
+                    "security.error.rate": float(error_rate),
+                },
+                "latency_percentiles": {
+                    "api": {
+                        "p50": p(lats, 0.50),
+                        "p95": p(lats, 0.95),
+                        "p99": p(lats, 0.99),
+                    },
+                    "gateway": {
+                        "p50": p(gw_lats, 0.50),
+                        "p95": p(gw_lats, 0.95),
+                        "p99": p(gw_lats, 0.99),
+                    },
+                },
+            }
+
 
 metrics_collector = SecurityMetricsCollector()

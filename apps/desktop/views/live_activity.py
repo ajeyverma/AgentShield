@@ -19,7 +19,10 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
     rec_id = rec.get("execution_id") or rec.get("id") if is_dict else rec.record_id
     dlg.setWindowTitle(f"Activity / Execution Detail — {str(rec_id)[:16]}")
     dlg.setMinimumWidth(540)
-    dlg.setStyleSheet(f"background:{T.SURFACE};")
+    dlg.setStyleSheet(
+        f"QDialog {{ background:{T.SURFACE}; }} "
+        f"QLabel {{ background: transparent; color: {T.TEXT}; }}"
+    )
     lay = QVBoxLayout(dlg)
     lay.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
     lay.setSpacing(T.SP_4)
@@ -102,9 +105,29 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
         lay.addWidget(r_txt)
 
     btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+    close_btn = btns.button(QDialogButtonBox.StandardButton.Close)
+    if close_btn:
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {T.PRIMARY}; color: {T.TEXT_ON_PRIMARY}; border: none; "
+            f"border-radius: {T.R_SM}px; padding: 6px 20px; font-weight: 600; min-height: 28px; }} "
+            f"QPushButton:hover {{ background-color: {T.PRIMARY_HOVER}; }}"
+        )
     btns.rejected.connect(dlg.reject)
     lay.addWidget(btns)
     dlg.exec()
+
+
+def _row_from_execution(exec_item: dict) -> list:
+    return [
+        str(exec_item.get("created_at", ""))[:19],
+        str(exec_item.get("agent_id", ""))[:12],
+        str(exec_item.get("tool_name", "")),
+        str(exec_item.get("operation") or exec_item.get("action_name", "")),
+        str(exec_item.get("decision", "ALLOW")),
+        str(exec_item.get("risk_level", "LOW")),
+        str(exec_item.get("execution_status") or exec_item.get("status", "COMPLETED")),
+        str(exec_item.get("execution_id") or exec_item.get("id")),
+    ]
 
 
 class LiveActivityView(QWidget):
@@ -125,6 +148,10 @@ class LiveActivityView(QWidget):
             resp = backend_client.list_executions(size=50)
             if resp and "items" in resp and resp["items"]:
                 live_executions = resp["items"]
+            else:
+                act = backend_client.get_activity(size=50)
+                if act and "items" in act and act["items"]:
+                    live_executions = act["items"]
 
         root.addWidget(PageHeader(
             "Live Activity",
@@ -148,6 +175,24 @@ class LiveActivityView(QWidget):
         self._table.get_view().setColumnHidden(7, True)
         self._table.get_view().horizontalHeader().setSectionResizeMode(0, self._table.get_view().horizontalHeader().ResizeMode.ResizeToContents)
         root.addWidget(self._table)
+
+    def refresh_data(self):
+        live_executions = []
+        if backend_client.is_connected:
+            resp = backend_client.list_executions(size=50)
+            if resp and "items" in resp and resp["items"]:
+                live_executions = resp["items"]
+            else:
+                act = backend_client.get_activity(size=50)
+                if act and "items" in act and act["items"]:
+                    live_executions = act["items"]
+
+        rows = [_row_from_execution(r) for r in live_executions]
+        for r in live_executions:
+            eid = str(r.get("execution_id") or r.get("id"))
+            self._records[eid] = r
+        if hasattr(self, "_table"):
+            self._table.set_rows(rows)
 
     def _on_row_select(self, row_data: list):
         rec_id = row_data[7]

@@ -149,6 +149,7 @@ class ThreatMonitoringView(QWidget):
             high = sum(1 for f in live_findings if str(f.get("severity", "")).upper() == "HIGH")
             res = sum(1 for f in live_findings if str(f.get("status", "")).lower() == "open")
 
+        self._stat_cards = []
         cards_row = QHBoxLayout(); cards_row.setSpacing(T.SP_4)
         for title, val, col in [
             ("Total Findings",   str(total), T.PRIMARY),
@@ -156,7 +157,9 @@ class ThreatMonitoringView(QWidget):
             ("High Severity",    str(high),  T.WARNING),
             ("Active Open",      str(res),   T.INFO),
         ]:
-            cards_row.addWidget(StatCard(title, val, accent_color=col))
+            card = StatCard(title, val, accent_color=col)
+            self._stat_cards.append(card)
+            cards_row.addWidget(card)
         root.addLayout(cards_row)
 
         # Threat list
@@ -165,21 +168,61 @@ class ThreatMonitoringView(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         inner = QWidget()
         inner.setStyleSheet(f"background:{T.BG_APP};")
-        inner_lay = QVBoxLayout(inner)
-        inner_lay.setSpacing(T.SP_3)
-        inner_lay.setContentsMargins(0, 0, 0, 0)
+        self._inner_lay = QVBoxLayout(inner)
+        self._inner_lay.setSpacing(T.SP_3)
+        self._inner_lay.setContentsMargins(0, 0, 0, 0)
 
         if live_findings:
             for f in live_findings:
                 card = self._make_finding_card(f)
-                inner_lay.addWidget(card)
+                self._inner_lay.addWidget(card)
         else:
             empty = EmptyState("🛡️", "No security threats detected. Agents are operating safely.")
-            inner_lay.addWidget(empty)
+            self._inner_lay.addWidget(empty)
 
-        inner_lay.addStretch()
+        self._inner_lay.addStretch()
         scroll.setWidget(inner)
         root.addWidget(scroll, stretch=1)
+
+    def refresh_data(self):
+        live_findings = []
+        live_summary = None
+        if backend_client.is_connected:
+            summary_resp = backend_client.get_threat_summary()
+            if summary_resp:
+                live_summary = summary_resp
+            findings_resp = backend_client.get_threat_findings(size=25)
+            if findings_resp and "items" in findings_resp:
+                live_findings = findings_resp["items"]
+
+        if live_summary:
+            total = live_summary.get("total_findings", 0)
+            crit = live_summary.get("critical_findings", 0)
+            high = live_summary.get("high_findings", 0)
+            res = live_summary.get("open_findings", 0)
+        else:
+            total = len(live_findings)
+            crit = sum(1 for f in live_findings if str(f.get("severity", "")).upper() == "CRITICAL")
+            high = sum(1 for f in live_findings if str(f.get("severity", "")).upper() == "HIGH")
+            res = sum(1 for f in live_findings if str(f.get("status", "")).lower() == "open")
+
+        vals = [str(total), str(crit), str(high), str(res)]
+        for i, card in enumerate(self._stat_cards):
+            if i < len(vals):
+                card.set_value(vals[i])
+
+        if hasattr(self, "_inner_lay"):
+            while self._inner_lay.count() > 1:
+                item = self._inner_lay.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            if live_findings:
+                for idx, f in enumerate(live_findings):
+                    card = self._make_finding_card(f)
+                    self._inner_lay.insertWidget(idx, card)
+            else:
+                empty = EmptyState("🛡️", "No security threats detected. Agents are operating safely.")
+                self._inner_lay.insertWidget(0, empty)
 
     def _make_finding_card(self, f: dict) -> QFrame:
         severity = f.get("severity", "MEDIUM").capitalize()

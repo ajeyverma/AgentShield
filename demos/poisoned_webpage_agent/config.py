@@ -7,12 +7,16 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 DEMO_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = DEMO_ROOT.parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+# Load .env file with demo agent credentials
+load_dotenv(DEMO_ROOT / ".env", override=True)
 
 DATA_DIR = DEMO_ROOT / "data"
 RESULTS_DIR = DEMO_ROOT / "results"

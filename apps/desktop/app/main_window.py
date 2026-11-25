@@ -203,6 +203,12 @@ class MainWindow(QMainWindow):
         idx = list(self._views.keys()).index(page_id)
         self._stack.setCurrentIndex(idx)
         self._header.update_page(page_id)
+        view = self._views[page_id]
+        if hasattr(view, "refresh_data"):
+            try:
+                view.refresh_data()
+            except Exception as exc:
+                logger.debug("View refresh failed: %s", exc)
 
     def _on_page_changed(self, page_id: str) -> None:
         """Slot connected to Sidebar.page_changed signal."""

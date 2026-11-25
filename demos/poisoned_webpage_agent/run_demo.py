@@ -38,7 +38,7 @@ logger = logging.getLogger("demos.poisoned_webpage.runner")
 
 def run_all_scenarios(use_mock_model: bool = True) -> list[dict[str, Any]]:
     """Execute all three benchmark scenarios and save JSON artifacts."""
-    adapter = AgentShieldAdapter()
+    adapter = AgentShieldAdapter(use_live_backend=True)
     results = []
 
     print("\n" + "=" * 78)

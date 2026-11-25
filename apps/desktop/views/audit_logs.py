@@ -84,6 +84,15 @@ class AuditLogsView(QWidget):
             self._table.get_view().setColumnHidden(col, True)
         root.addWidget(self._table)
 
+    def refresh_data(self):
+        logs = backend_client.get_audit_logs() or []
+        for r in logs:
+            eid = str(r.get("event_id") or r.get("id", ""))
+            self._records[eid] = r
+        rows = [_row(r) for r in logs]
+        if hasattr(self, "_table"):
+            self._table.set_rows(rows)
+
     def _on_select(self, row_data: list):
         rec_id = row_data[8]
         rec = self._records.get(rec_id)

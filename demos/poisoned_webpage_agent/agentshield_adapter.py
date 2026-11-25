@@ -69,11 +69,20 @@ class AgentShieldAdapter:
         agent_id: str | None = None,
         tenant_id: str | None = None,
         backend_url: str | None = None,
+        use_live_backend: bool = False,
     ) -> None:
-        self.agent_uuid = DEMO_AGENT_UUID
-        self.tenant_uuid = DEMO_TENANT_UUID
-        self.agent_id = str(self.agent_uuid)
-        self.tenant_id = str(self.tenant_uuid)
+        self.use_live_backend = use_live_backend
+        self.agent_id = agent_id or settings.agent_id
+        self.tenant_id = tenant_id or settings.tenant_id
+        self.agent_credential = settings.agent_credential
+        try:
+            self.agent_uuid = uuid.UUID(self.agent_id)
+        except Exception:
+            self.agent_uuid = DEMO_AGENT_UUID
+        try:
+            self.tenant_uuid = uuid.UUID(self.tenant_id)
+        except Exception:
+            self.tenant_uuid = DEMO_TENANT_UUID
         self.backend_url = backend_url or settings.backend_url
         self.active_provenance: ProvenanceContext | None = None
         self.cached_webpage_threats: ThreatAnalysisResult | None = None
@@ -238,16 +247,48 @@ class AgentShieldAdapter:
                     findings=combined_findings,
                 )
 
-            # 4. Authoritative Security Evaluation via DecisionEngine
-            decision = security_engine.evaluate_action(
-                authenticated_user_id=self.tenant_id,
-                authenticated_agent_id=self.agent_id,
-                agent_status="active",
-                request=action_req,
-                permissions=self.agent_permissions,
-                db_policies=self.policies,
-                threat_result=combined_threats,
-            )
+            # 4. Authoritative Security Evaluation via Backend API (or in-process fallback)
+            remote_decision = None
+            if self.use_live_backend:
+                try:
+                    import httpx
+                    payload = action_req.model_dump(mode="json")
+                    if self.cached_webpage_threats and self.cached_webpage_threats.findings:
+                        payload["untrusted_content"] = " ".join(
+                            f.description for f in self.cached_webpage_threats.findings
+                        )
+                    resp = httpx.post(
+                        f"{self.backend_url}/api/v1/security/evaluate",
+                        headers={"X-Agent-Credential": self.agent_credential},
+                        json=payload,
+                        timeout=3.0,
+                    )
+                    if resp.status_code == 200:
+                        d_data = resp.json()
+                        dec_val = d_data.get("decision", "BLOCK")
+                        remote_decision = Decision(dec_val)
+                        reasons = d_data.get("reasons", [])
+                except Exception as exc:
+                    logger.debug("Backend HTTP evaluation skipped, using in-process engine: %s", exc)
+
+            if remote_decision is not None:
+                decision = SecurityDecision(
+                    request_id=action_req.request_id,
+                    decision=remote_decision,
+                    risk_score=combined_threats.overall_threat_score,
+                    risk_level=RiskLevel.HIGH if remote_decision == Decision.BLOCK else RiskLevel.LOW,
+                    reasons=reasons or ["Evaluated by live AgentShield security backend."],
+                )
+            else:
+                decision = security_engine.evaluate_action(
+                    authenticated_user_id=self.tenant_id,
+                    authenticated_agent_id=self.agent_id,
+                    agent_status="active",
+                    request=action_req,
+                    permissions=self.agent_permissions,
+                    db_policies=self.policies,
+                    threat_result=combined_threats,
+                )
 
             decision_type = decision.decision.value if hasattr(decision.decision, "value") else str(decision.decision)
             reasons = list(decision.reasons)

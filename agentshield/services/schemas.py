@@ -423,11 +423,15 @@ class AuditLogResponse(BaseModel):
 
     id: str
     user_id: str
-    agent_id: str | None
+    agent_id: str | None = None
     event_type: str
     resource_type: str
-    resource_id: str | None
+    resource_id: str | None = None
     description: str
+    action: str | None = None
+    result: str | None = None
+    sequence_number: int | None = None
+    current_hash: str | None = None
     created_at: datetime
 
 

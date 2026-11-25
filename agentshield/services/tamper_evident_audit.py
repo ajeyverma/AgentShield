@@ -196,7 +196,11 @@ class TamperEvidentAuditService:
                 return AuditVerifyResult(False, err, idx, {"failed_record_id": rec.id, "sequence": rec.sequence_number})
 
             # Recompute hash from record content
-            time_iso = rec.created_at.isoformat() if rec.created_at else ""
+            if rec.created_at:
+                c_time = rec.created_at if rec.created_at.tzinfo else rec.created_at.replace(tzinfo=UTC)
+                time_iso = c_time.isoformat()
+            else:
+                time_iso = ""
             _, computed_hash = compute_record_hash(
                 sequence_number=rec.sequence_number,
                 previous_hash=rec.previous_hash,

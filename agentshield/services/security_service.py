@@ -28,6 +28,7 @@ from agentshield.database.models.threat_finding import ThreatFindingModel
 from agentshield.realtime.event_broadcaster import broadcaster
 from agentshield.security.engine import compute_canonical_request_hash, security_engine
 from agentshield.services.schemas import PaginatedResponse
+from agentshield.services.tamper_evident_audit import TamperEvidentAuditService
 from agentshield.threat_detection.engine import threat_coordinator
 
 logger = logging.getLogger("agentshield.services.security")
@@ -160,6 +161,22 @@ class SecurityService:
             arguments_summary=str(list(request.arguments.keys())) if request.arguments else None,
         )
         self.session.add(act_event)
+
+        # 6. Append to tamper-evident cryptographically chained audit log
+        try:
+            audit_svc = TamperEvidentAuditService(self.session)
+            await audit_svc.record_audit_entry(
+                tenant_id=user_id,
+                actor_id=agent.id,
+                action=f"{request.tool_name}:{request.operation or 'invoke'}",
+                target=request.resource or request.tool_name,
+                result=decision.decision.value,
+                description=f"Evaluated {request.tool_name} with decision {decision.decision.value}. Risk: {decision.risk_level.value}",
+                agent_id=agent.id,
+                event_type="security.action_evaluated",
+            )
+        except Exception as audit_err:
+            logger.warning("Failed to record tamper-evident audit entry: %s", audit_err)
 
         await self.session.commit()
 

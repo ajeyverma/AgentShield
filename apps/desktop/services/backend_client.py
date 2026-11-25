@@ -194,6 +194,18 @@ class BackendClient:
             logger.warning("Failed to fetch activity: %s", exc)
             return None
 
+    def clear_activity(self) -> bool:
+        """Clear all activity events for current user."""
+        try:
+            resp = self._client.delete(
+                f"{self.api_prefix}/activity",
+                headers=self._headers(),
+            )
+            return resp.status_code == 200
+        except Exception as exc:
+            logger.warning("Failed to clear activity: %s", exc)
+            return False
+
     # ── Threats ──────────────────────────────────────────────────────────────
 
     def get_threats(self) -> list[dict[str, Any]] | None:

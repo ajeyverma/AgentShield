@@ -77,3 +77,11 @@ class ActivityService:
         await self.session.refresh(event)
         await self.session.commit()
         return ActivityResponse.model_validate(event)
+
+    async def clear_activity(self, user_id: str) -> int:
+        """Delete all activity events for the given user/tenant."""
+        from sqlalchemy import delete
+        stmt = delete(ActivityEvent).where(ActivityEvent.user_id == user_id)
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        return result.rowcount or 0

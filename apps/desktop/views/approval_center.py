@@ -59,7 +59,18 @@ class ApprovalDetailDialog(QDialog):
     def _build_ui(self):
         self.setWindowTitle(f"Approval Request — {self.data.get('request_id', self.data.get('id', ''))}")
         self.setMinimumWidth(580)
-        self.setStyleSheet(f"background:{T.SURFACE};")
+        self.setStyleSheet(
+            f"QDialog {{ background:{T.SURFACE}; }} "
+            f"QPushButton {{ padding: 6px 14px; font-weight: 600; border-radius: 6px; font-size: 13px; }} "
+            f"QPushButton#primary {{ background-color: #2563EB; color: #FFFFFF; border: none; }} "
+            f"QPushButton#primary:hover {{ background-color: #1D4ED8; }} "
+            f"QPushButton#secondary {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; }} "
+            f"QPushButton#secondary:hover {{ background-color: #E2E8F0; }} "
+            f"QPushButton#success {{ background-color: #16A34A; color: #FFFFFF; border: none; }} "
+            f"QPushButton#success:hover {{ background-color: #15803D; }} "
+            f"QPushButton#danger {{ background-color: #DC2626; color: #FFFFFF; border: none; }} "
+            f"QPushButton#danger:hover {{ background-color: #B91C1C; }}"
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
@@ -160,25 +171,39 @@ class ApprovalDetailDialog(QDialog):
             )
             layout.addWidget(rev_box)
 
-        # Action Buttons (only for pending)
+        # Action Buttons
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(T.SP_3)
         if status_val.lower() == "pending" and self.on_decision:
-            btn_row = QHBoxLayout()
             approve_btn = QPushButton("✓  Approve Request")
             approve_btn.setObjectName("success")
+            approve_btn.setMinimumHeight(34)
             approve_btn.clicked.connect(self._handle_approve)
 
             reject_btn = QPushButton("✗  Reject Request")
             reject_btn.setObjectName("danger")
+            reject_btn.setMinimumHeight(34)
             reject_btn.clicked.connect(self._handle_reject)
+
+            cancel_btn = QPushButton("Cancel")
+            cancel_btn.setObjectName("secondary")
+            cancel_btn.setMinimumHeight(34)
+            cancel_btn.clicked.connect(self.reject)
 
             btn_row.addWidget(approve_btn)
             btn_row.addWidget(reject_btn)
             btn_row.addStretch()
-            layout.addLayout(btn_row)
+            btn_row.addWidget(cancel_btn)
         else:
-            close_btn = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-            close_btn.rejected.connect(self.reject)
-            layout.addWidget(close_btn)
+            close_btn = QPushButton("Close")
+            close_btn.setObjectName("secondary")
+            close_btn.setMinimumHeight(34)
+            close_btn.setMinimumWidth(100)
+            close_btn.clicked.connect(self.reject)
+            btn_row.addStretch()
+            btn_row.addWidget(close_btn)
+
+        layout.addLayout(btn_row)
 
     def _handle_approve(self):
         comment, ok = QInputDialog.getText(
@@ -363,7 +388,10 @@ class ApprovalCenterView(QWidget):
         lay.addWidget(StatusBadge(st))
 
         review_btn = QPushButton("Review")
-        review_btn.setObjectName("secondary")
+        review_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #2563EB; color: #FFFFFF; border: none; font-weight: 600; border-radius: 6px; padding: 4px 10px; font-size: 12px; }}"
+            f"QPushButton:hover {{ background-color: #1D4ED8; }}"
+        )
         review_btn.setFixedWidth(80)
         review_btn.clicked.connect(lambda _, r=rec: self._open_detail(r))
         lay.addWidget(review_btn)

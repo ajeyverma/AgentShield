@@ -4,7 +4,7 @@ import json
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QDialog,
-    QDialogButtonBox, QGridLayout, QTextEdit,
+    QDialogButtonBox, QGridLayout, QTextEdit, QPushButton, QMessageBox,
 )
 from apps.desktop.themes.design_tokens import T
 from apps.desktop.components.page_header  import PageHeader
@@ -153,10 +153,34 @@ class LiveActivityView(QWidget):
                 if act and "items" in act and act["items"]:
                     live_executions = act["items"]
 
-        root.addWidget(PageHeader(
+        hdr_row = QHBoxLayout()
+        hdr_row.addWidget(PageHeader(
             "Live Activity",
             "Security evaluation and controlled gateway execution log.",
         ))
+
+        btn_box = QHBoxLayout()
+        btn_box.setSpacing(T.SP_2)
+
+        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn.setObjectName("secondary")
+        refresh_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; font-weight: 600; border-radius: 6px; padding: 5px 12px; }}"
+            f"QPushButton:hover {{ background-color: #E2E8F0; }}"
+        )
+        refresh_btn.clicked.connect(self.refresh_data)
+        btn_box.addWidget(refresh_btn)
+
+        clear_btn = QPushButton("🗑 Clear Activity")
+        clear_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; font-weight: 600; border-radius: 6px; padding: 5px 12px; }}"
+            f"QPushButton:hover {{ background-color: #FCA5A5; }}"
+        )
+        clear_btn.clicked.connect(self._clear_activity)
+        btn_box.addWidget(clear_btn)
+
+        hdr_row.addLayout(btn_box)
+        root.addLayout(hdr_row)
 
         headers = ["Timestamp", "Agent", "Tool", "Operation",
                    "Decision", "Risk Level", "Status", "ID"]
@@ -193,6 +217,22 @@ class LiveActivityView(QWidget):
             self._records[eid] = r
         if hasattr(self, "_table"):
             self._table.set_rows(rows)
+
+    def _clear_activity(self):
+        reply = QMessageBox.question(
+            self,
+            "Clear Activity Logs",
+            "Are you sure you want to clear all activity events? This will delete all recorded events from the database.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            if backend_client.is_connected:
+                backend_client.clear_activity()
+            self._records.clear()
+            if hasattr(self, "_table"):
+                self._table.set_rows([])
+            self.refresh_data()
 
     def _on_row_select(self, row_data: list):
         rec_id = row_data[7]

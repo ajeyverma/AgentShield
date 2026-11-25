@@ -4,6 +4,7 @@ AgentShield AI — Activity Routes.
 
 from __future__ import annotations
 
+from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 
 from apps.api.dependencies import CurrentUser, DbSession
@@ -58,3 +59,14 @@ async def record_activity(
     """Record a tool activity event."""
     service = ActivityService(db)
     return await service.record_activity(user.id, data)
+
+
+@router.delete("", status_code=status.HTTP_200_OK)
+async def clear_activity(
+    user: CurrentUser,
+    db: DbSession,
+) -> dict[str, Any]:
+    """Clear all recorded activity events for the authenticated user."""
+    service = ActivityService(db)
+    deleted = await service.clear_activity(user.id)
+    return {"message": "Activity events cleared successfully.", "deleted_count": deleted}

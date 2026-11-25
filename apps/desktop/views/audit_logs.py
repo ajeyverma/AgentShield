@@ -15,17 +15,15 @@ from apps.desktop.services.backend_client import backend_client
 
 
 def _row(r: dict[str, Any]) -> list:
-    return [
-        str(r.get("timestamp", ""))[:19],
-        str(r.get("event_id") or r.get("id", ""))[:12],
-        str(r.get("agent_id") or r.get("agent_name", "")),
-        str(r.get("action") or r.get("operation", "")),
-        str(r.get("decision", "ALLOW")),
-        str(r.get("result") or r.get("status", "SUCCESS")),
-        str(r.get("policy_id", "")),
-        str(r.get("details", "")),
-        str(r.get("event_id") or r.get("id", "")),
-    ]
+    ts = str(r.get("created_at") or r.get("timestamp", ""))[:19]
+    eid = str(r.get("id") or r.get("event_id", ""))
+    ag = str(r.get("agent_id") or r.get("agent_name", "") or "-")
+    act = str(r.get("action") or r.get("operation") or r.get("event_type", "") or "-")
+    res = str(r.get("result") or r.get("decision", "ALLOW") or "SUCCESS")
+    dec = res if res in ("ALLOW", "BLOCK", "ASK_HUMAN") else ("BLOCK" if "BLOCK" in str(r.get("description", "")).upper() else "ALLOW")
+    pol = str(r.get("policy_id") or r.get("resource_type", ""))
+    desc = str(r.get("description") or r.get("details", ""))
+    return [ts, eid[:12], ag[:12], act, dec, res, pol, desc, eid]
 
 
 class AuditLogsView(QWidget):
@@ -50,6 +48,15 @@ class AuditLogsView(QWidget):
 
         btn_box = QHBoxLayout()
         btn_box.setSpacing(T.SP_2)
+
+        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn.setObjectName("secondary")
+        refresh_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; font-weight: 600; border-radius: 6px; padding: 5px 12px; }}"
+            f"QPushButton:hover {{ background-color: #E2E8F0; }}"
+        )
+        refresh_btn.clicked.connect(self.refresh_data)
+        btn_box.addWidget(refresh_btn)
 
         verify_btn = QPushButton("Verify Hash Chain")
         verify_btn.setObjectName("secondary")

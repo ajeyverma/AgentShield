@@ -13,6 +13,7 @@ from apps.desktop.components.status_badge import StatusBadge, RiskBadge
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.empty_state  import EmptyState
 from apps.desktop.services.backend_client import backend_client
+from apps.desktop.utils import to_ist_str
 
 
 @dataclass
@@ -282,7 +283,7 @@ class AgentManagerView(QWidget):
                     name=a.get("agent_name") or a.get("name", "Unnamed Agent"),
                     framework=a.get("framework", "Agent SDK"),
                     status=str(a.get("status", "Active")).capitalize(),
-                    last_seen=str(a.get("last_seen_at") or a.get("last_active_at") or a.get("created_at") or "Recently")[:19],
+                    last_seen=to_ist_str(a.get("last_seen_at") or a.get("last_active_at") or a.get("created_at"), with_tz=True),
                     tools_registered=len(a.get("tools", [])),
                     risk_status="Normal",
                     total_actions=a.get("total_actions", 0),

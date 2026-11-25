@@ -37,6 +37,7 @@ from apps.desktop.components.status_badge import RiskBadge, StatusBadge
 from apps.desktop.components.empty_state import EmptyState
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.themes.design_tokens import T
+from apps.desktop.utils import to_ist_str
 
 logger = logging.getLogger("agentshield.desktop.approval_center")
 
@@ -104,8 +105,8 @@ class ApprovalDetailDialog(QDialog):
             ("Agent ID", str(self.data.get("agent_id", "-"))),
             ("Risk Score", f"{self.data.get('risk_score', 0):.0f}/100" if self.data.get("risk_score") is not None else "N/A"),
             ("Resource", str(self.data.get("resource", "-"))),
-            ("Created At", str(self.data.get("created_at", "-"))[:19]),
-            ("Expires At", str(self.data.get("expires_at", "No timeout"))[:19] if self.data.get("expires_at") else "No timeout"),
+            ("Created At (IST)", to_ist_str(self.data.get("created_at"), with_tz=True)),
+            ("Expires At (IST)", to_ist_str(self.data.get("expires_at"), with_tz=True) if self.data.get("expires_at") else "No timeout"),
         ]
         for idx, (label, val) in enumerate(items):
             k_lbl = QLabel(f"{label}:")
@@ -163,7 +164,7 @@ class ApprovalDetailDialog(QDialog):
         # Review history / info if resolved
         if status_val.lower() in ("approved", "rejected", "cancelled"):
             rev_by = self.data.get("reviewed_by") or "Admin"
-            rev_at = str(self.data.get("reviewed_at", ""))[:19]
+            rev_at = to_ist_str(self.data.get("reviewed_at"), with_tz=True)
             rev_comment = self.data.get("review_comment") or self.data.get("rejection_reason") or "-"
             rev_box = QLabel(f"Resolved by {rev_by} at {rev_at}\nNote: {rev_comment}")
             rev_box.setStyleSheet(
@@ -376,7 +377,7 @@ class ApprovalCenterView(QWidget):
         name_l.setStyleSheet(f"color:{T.TEXT}; font-weight:700; background:transparent;")
 
         agent_val = rec.get("agent_id", "Agent")
-        created_val = str(rec.get("created_at", ""))[:16]
+        created_val = to_ist_str(rec.get("created_at"), with_tz=True)
         sub_l = QLabel(f"Agent: {agent_val}  •  Requested: {created_val}")
         sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent;")
         left.addWidget(name_l)

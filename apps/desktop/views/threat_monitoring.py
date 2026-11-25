@@ -14,6 +14,7 @@ from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.status_badge import RiskBadge, StatusBadge
 from apps.desktop.components.empty_state  import EmptyState
 from apps.desktop.services.backend_client import backend_client
+from apps.desktop.utils import to_ist_str
 
 
 def _threat_detail(t: dict | ThreatRecord, parent) -> None:
@@ -53,14 +54,14 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
             ("Detector", f"{t.get('detector_id', '')} (v{t.get('detector_version', '1.0')})"),
             ("Confidence", str(conf_val)),
             ("Affected Resource", str(t.get("affected_resource") or "None")),
-            ("Detected At", str(t.get("created_at") or "")[:19]),
+            ("Detected At (IST)", to_ist_str(t.get("created_at"), with_tz=True)),
         ]
     else:
         items = [
             ("Event ID", t.event_id),
             ("Source Agent", t.source_agent),
             ("Affected Tool", t.affected_tool),
-            ("Detected At", t.detected_at),
+            ("Detected At (IST)", to_ist_str(t.detected_at, with_tz=True)),
         ]
 
     for i, (k, v) in enumerate(items):
@@ -248,7 +249,7 @@ class ThreatMonitoringView(QWidget):
         title_l.setStyleSheet(f"color:{T.TEXT}; font-weight:700; font-size:{T.FS_MD}px; background:transparent;")
         agent_id_str = str(f.get("agent_id", ""))[:12]
         detector_id = f.get("detector_id", "")
-        time_str = str(f.get("created_at", ""))[:19]
+        time_str = to_ist_str(f.get("created_at"), with_tz=True)
         sub_l = QLabel(f"Agent: {agent_id_str}  •  Detector: {detector_id}  •  {time_str}")
         sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent;")
         left.addWidget(title_l); left.addWidget(sub_l)

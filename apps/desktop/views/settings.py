@@ -84,6 +84,7 @@ class SettingsView(QWidget):
         font_combo.addItems(["System Default", "Inter", "Segoe UI"])
         font_combo.setMaximumWidth(220)
         app_lay.addLayout(_row("Font Family", font_combo))
+        app_lay.addLayout(_row("Display Timezone", _readonly("Asia/Kolkata — IST (UTC+05:30)")))
         lay.addWidget(app_card)
 
         # ── Backend Connection ────────────────────────────────────────────────

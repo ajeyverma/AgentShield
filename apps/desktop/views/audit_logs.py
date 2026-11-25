@@ -12,10 +12,11 @@ from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.status_badge import DecisionBadge, StatusBadge
 from apps.desktop.services.backend_client import backend_client
+from apps.desktop.utils import to_ist_str
 
 
 def _row(r: dict[str, Any]) -> list:
-    ts = str(r.get("created_at") or r.get("timestamp", ""))[:19]
+    ts = to_ist_str(r.get("created_at") or r.get("timestamp"))
     eid = str(r.get("id") or r.get("event_id", ""))
     ag = str(r.get("agent_id") or r.get("agent_name", "") or "-")
     act = str(r.get("action") or r.get("operation") or r.get("event_type", "") or "-")
@@ -123,7 +124,7 @@ class AuditLogsView(QWidget):
         grid = QGridLayout(); grid.setSpacing(T.SP_2)
         for i, (k, v) in enumerate([
             ("Event ID",   event_id),
-            ("Timestamp",  str(rec.get("timestamp", ""))),
+            ("Timestamp (IST)", to_ist_str(rec.get("created_at") or rec.get("timestamp"), with_tz=True)),
             ("Agent",      str(rec.get("agent_id") or rec.get("agent_name", ""))),
             ("Action",     str(rec.get("action") or rec.get("operation", ""))),
             ("Policy",     str(rec.get("policy_id", ""))),
@@ -158,7 +159,7 @@ class AuditLogsView(QWidget):
                         "Decision", "Result", "Policy", "Details"])
             for r in self._records.values():
                 w.writerow([
-                    str(r.get("timestamp", "")),
+                    to_ist_str(r.get("created_at") or r.get("timestamp"), with_tz=True),
                     str(r.get("event_id") or r.get("id", "")),
                     str(r.get("agent_id") or r.get("agent_name", "")),
                     str(r.get("action") or r.get("operation", "")),

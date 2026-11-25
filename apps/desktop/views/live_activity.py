@@ -11,6 +11,7 @@ from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.status_badge import DecisionBadge, RiskBadge, StatusBadge
 from apps.desktop.services.backend_client import backend_client
+from apps.desktop.utils import to_ist_str
 
 
 def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
@@ -44,7 +45,7 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
     if is_dict:
         fields = [
             ("Execution ID", str(rec.get("execution_id") or rec.get("id"))),
-            ("Created At",   str(rec.get("created_at", ""))[:19]),
+            ("Created At (IST)", to_ist_str(rec.get("created_at"), with_tz=True)),
             ("Agent ID",     str(rec.get("agent_id", ""))[:12]),
             ("Tool",         str(rec.get("tool_name", ""))),
             ("Action",       str(rec.get("action_name", ""))),
@@ -53,7 +54,7 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
     else:
         fields = [
             ("Record ID",  rec.record_id),
-            ("Timestamp",  rec.timestamp),
+            ("Timestamp (IST)", to_ist_str(rec.timestamp, with_tz=True)),
             ("Agent",      rec.agent_name),
             ("Agent ID",   rec.agent_id),
             ("Tool",       rec.tool_name),
@@ -119,7 +120,7 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
 
 def _row_from_execution(exec_item: dict) -> list:
     return [
-        str(exec_item.get("created_at", ""))[:19],
+        to_ist_str(exec_item.get("created_at")),
         str(exec_item.get("agent_id", ""))[:12],
         str(exec_item.get("tool_name", "")),
         str(exec_item.get("operation") or exec_item.get("action_name", "")),

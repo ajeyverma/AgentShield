@@ -11,6 +11,7 @@ from apps.desktop.components.status_badge import DecisionBadge, RiskBadge, Statu
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.mini_chart   import BarChartWidget, DonutChartWidget
 from apps.desktop.services.backend_client import backend_client
+from apps.desktop.utils import to_ist_str
 
 
 def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
@@ -195,7 +196,7 @@ class DashboardView(QWidget):
             for rec in real_executions:
                 r = table.rowCount()
                 table.insertRow(r)
-                table.setItem(r, 0, QTableWidgetItem(str(rec.get("created_at", ""))[:19]))
+                table.setItem(r, 0, QTableWidgetItem(to_ist_str(rec.get("created_at"))))
                 table.setItem(r, 1, QTableWidgetItem(str(rec.get("agent_id", ""))[:12]))
                 table.setItem(r, 2, QTableWidgetItem(str(rec.get("tool_name", ""))))
                 table.setItem(r, 3, QTableWidgetItem(str(rec.get("operation") or rec.get("action_name", ""))))
@@ -250,7 +251,7 @@ class DashboardView(QWidget):
                 info_col.setSpacing(1)
                 title_l = QLabel(str(t.get("threat_type") or t.get("title", "Threat Event")))
                 title_l.setStyleSheet(f"color:{T.TEXT}; font-weight:600; background:transparent; border:none;")
-                sub_l = QLabel(f"Agent: {str(t.get('agent_id', ''))[:12]}  •  {str(t.get('created_at', ''))[:19]}")
+                sub_l = QLabel(f"Agent: {str(t.get('agent_id', ''))[:12]}  •  {to_ist_str(t.get('created_at'), with_tz=True)}")
                 sub_l.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_SM}px; background:transparent; border:none;")
                 info_col.addWidget(title_l)
                 info_col.addWidget(sub_l)

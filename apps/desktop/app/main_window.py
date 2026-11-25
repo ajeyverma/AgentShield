@@ -149,6 +149,12 @@ class MainWindow(QMainWindow):
         )
 
         # Permanent plain text label on the right side of the bottom status bar
+        self._status_tz_lbl = QLabel("Timezone: IST (UTC+05:30)")
+        self._status_tz_lbl.setStyleSheet(
+            f"color: {T.TEXT_SEC}; font-size: 11px; font-weight: 500; padding: 0px 8px;"
+        )
+        self._status_bar.addPermanentWidget(self._status_tz_lbl)
+
         self._status_user_lbl = QLabel("Admin")
         self._status_user_lbl.setStyleSheet(
             f"color: {T.TEXT_SEC}; font-size: 11px; font-weight: 500; padding: 0px 8px;"

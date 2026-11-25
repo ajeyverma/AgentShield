@@ -32,8 +32,11 @@ class AgentRecord:
 def _detail_dialog(agent: AgentRecord, parent) -> None:
     dlg = QDialog(parent)
     dlg.setWindowTitle(f"Agent Details — {agent.name}")
-    dlg.setMinimumWidth(480)
-    dlg.setStyleSheet(f"background:{T.SURFACE};")
+    dlg.setMinimumWidth(500)
+    dlg.setStyleSheet(
+        f"QDialog {{ background: {T.SURFACE}; }} "
+        f"QLabel {{ background: transparent; color: {T.TEXT}; }} "
+    )
 
     lay = QVBoxLayout(dlg)
     lay.setSpacing(T.SP_4)
@@ -84,6 +87,13 @@ def _detail_dialog(agent: AgentRecord, parent) -> None:
     lay.addWidget(desc)
 
     btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+    close_btn = btns.button(QDialogButtonBox.StandardButton.Close)
+    if close_btn:
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: {T.PRIMARY}; color: {T.TEXT_ON_PRIMARY}; border: none; "
+            f"border-radius: {T.R_SM}px; padding: 6px 20px; font-weight: 600; min-height: 28px; }} "
+            f"QPushButton:hover {{ background-color: {T.PRIMARY_HOVER}; }}"
+        )
     btns.rejected.connect(dlg.reject)
     lay.addWidget(btns)
     dlg.exec()
@@ -95,8 +105,14 @@ class RegisterAgentDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Register New AI Agent")
-        self.setMinimumWidth(440)
-        self.setStyleSheet(f"background:{T.SURFACE};")
+        self.setMinimumWidth(480)
+        self.setStyleSheet(
+            f"QDialog {{ background: {T.SURFACE}; }} "
+            f"QLabel {{ background: transparent; color: {T.TEXT}; }} "
+            f"QLineEdit, QComboBox {{ background: {T.SURFACE}; border: 1px solid {T.BORDER}; "
+            f"border-radius: {T.R_SM}px; padding: 6px 10px; color: {T.TEXT}; font-size: {T.FS_MD}px; }} "
+            f"QLineEdit:focus, QComboBox:focus {{ border-color: {T.PRIMARY}; }} "
+        )
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
@@ -132,7 +148,21 @@ class RegisterAgentDialog(QDialog):
         lay.addLayout(form)
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        btns.button(QDialogButtonBox.StandardButton.Ok).setText("Register Agent")
+        ok_btn = btns.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn:
+            ok_btn.setText("Register Agent")
+            ok_btn.setStyleSheet(
+                f"QPushButton {{ background-color: {T.PRIMARY}; color: {T.TEXT_ON_PRIMARY}; border: none; "
+                f"border-radius: {T.R_SM}px; padding: 6px 20px; font-weight: 600; min-height: 28px; }} "
+                f"QPushButton:hover {{ background-color: {T.PRIMARY_HOVER}; }}"
+            )
+        cancel_btn = btns.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_btn:
+            cancel_btn.setStyleSheet(
+                f"QPushButton {{ background-color: {T.SURFACE}; color: {T.TEXT}; border: 1px solid {T.BORDER}; "
+                f"border-radius: {T.R_SM}px; padding: 6px 20px; font-weight: 600; min-height: 28px; }} "
+                f"QPushButton:hover {{ background-color: {T.SURFACE_ALT}; }}"
+            )
         btns.accepted.connect(self._register)
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)

@@ -13,6 +13,7 @@ from apps.desktop.components.stat_card    import StatCard
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.status_badge import RiskBadge, StatusBadge
 from apps.desktop.components.empty_state  import EmptyState
+from apps.desktop.components.icons        import get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.utils import to_ist_str
 
@@ -111,7 +112,8 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
     btn_row = QHBoxLayout()
     btn_row.setSpacing(T.SP_3)
 
-    delete_btn = QPushButton("🗑  Delete Finding")
+    delete_btn = QPushButton("Delete Finding")
+    delete_btn.setIcon(get_icon("trash", size=14, color="#DC2626"))
     delete_btn.setObjectName("danger")
     delete_btn.setMinimumHeight(34)
     delete_btn.setStyleSheet(
@@ -223,7 +225,7 @@ class ThreatMonitoringView(QWidget):
                 card = self._make_finding_card(f)
                 self._inner_lay.addWidget(card)
         else:
-            empty = EmptyState("🛡️", "No security threats detected. Agents are operating safely.")
+            empty = EmptyState("shield", "No security threats detected. Agents are operating safely.")
             self._inner_lay.addWidget(empty)
 
         self._inner_lay.addStretch()
@@ -267,7 +269,7 @@ class ThreatMonitoringView(QWidget):
                     card = self._make_finding_card(f)
                     self._inner_lay.insertWidget(idx, card)
             else:
-                empty = EmptyState("🛡️", "No security threats detected. Agents are operating safely.")
+                empty = EmptyState("shield", "No security threats detected. Agents are operating safely.")
                 self._inner_lay.insertWidget(0, empty)
 
     def _make_finding_card(self, f: dict) -> QFrame:

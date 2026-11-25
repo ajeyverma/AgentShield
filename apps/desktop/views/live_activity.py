@@ -10,6 +10,7 @@ from apps.desktop.themes.design_tokens import T
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.status_badge import DecisionBadge, RiskBadge, StatusBadge
+from apps.desktop.components.icons        import get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.utils import to_ist_str
 
@@ -163,7 +164,8 @@ class LiveActivityView(QWidget):
         btn_box = QHBoxLayout()
         btn_box.setSpacing(T.SP_2)
 
-        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setIcon(get_icon("refresh", size=14, color="#0F172A"))
         refresh_btn.setObjectName("secondary")
         refresh_btn.setStyleSheet(
             f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; font-weight: 600; border-radius: 6px; padding: 5px 12px; }}"
@@ -172,7 +174,8 @@ class LiveActivityView(QWidget):
         refresh_btn.clicked.connect(self.refresh_data)
         btn_box.addWidget(refresh_btn)
 
-        clear_btn = QPushButton("🗑 Clear Activity")
+        clear_btn = QPushButton("Clear Activity")
+        clear_btn.setIcon(get_icon("trash", size=14, color="#DC2626"))
         clear_btn.setStyleSheet(
             f"QPushButton {{ background-color: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; font-weight: 600; border-radius: 6px; padding: 5px 12px; }}"
             f"QPushButton:hover {{ background-color: #FCA5A5; }}"

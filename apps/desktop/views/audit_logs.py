@@ -11,6 +11,7 @@ from apps.desktop.themes.design_tokens import T
 from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.status_badge import DecisionBadge, StatusBadge
+from apps.desktop.components.icons        import get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.utils import to_ist_str
 
@@ -50,7 +51,8 @@ class AuditLogsView(QWidget):
         btn_box = QHBoxLayout()
         btn_box.setSpacing(T.SP_2)
 
-        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setIcon(get_icon("refresh", size=14, color="#0F172A"))
         refresh_btn.setObjectName("secondary")
         refresh_btn.setStyleSheet(
             f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; font-weight: 600; border-radius: 6px; padding: 5px 12px; }}"
@@ -141,9 +143,20 @@ class AuditLogsView(QWidget):
         d_txt.setStyleSheet(f"color:{T.TEXT};")
         lay.addWidget(d_txt)
 
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        btns.rejected.connect(dlg.reject)
-        lay.addWidget(btns)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        close_btn = QPushButton("Cancel / Close")
+        close_btn.setObjectName("secondary")
+        close_btn.setMinimumHeight(34)
+        close_btn.setMinimumWidth(110)
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; "
+            f"font-weight: 600; border-radius: 6px; padding: 6px 16px; font-size: 13px; }} "
+            f"QPushButton:hover {{ background-color: #E2E8F0; }}"
+        )
+        close_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(close_btn)
+        lay.addLayout(btn_row)
         dlg.exec()
 
     def _export_csv(self):
@@ -208,7 +221,18 @@ class AuditLogsView(QWidget):
         d_txt.setStyleSheet(f"color:{T.TEXT}; font-size:{T.FS_SM}px;")
         lay.addWidget(d_txt)
 
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        btns.rejected.connect(dlg.reject)
-        lay.addWidget(btns)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        close_btn = QPushButton("Cancel / Close")
+        close_btn.setObjectName("secondary")
+        close_btn.setMinimumHeight(34)
+        close_btn.setMinimumWidth(110)
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; "
+            f"font-weight: 600; border-radius: 6px; padding: 6px 16px; font-size: 13px; }} "
+            f"QPushButton:hover {{ background-color: #E2E8F0; }}"
+        )
+        close_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(close_btn)
+        lay.addLayout(btn_row)
         dlg.exec()

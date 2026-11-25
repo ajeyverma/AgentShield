@@ -35,6 +35,7 @@ from apps.desktop.components.page_header import PageHeader
 from apps.desktop.components.stat_card import StatCard
 from apps.desktop.components.status_badge import RiskBadge, StatusBadge
 from apps.desktop.components.empty_state import EmptyState
+from apps.desktop.components.icons import get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.themes.design_tokens import T
 from apps.desktop.utils import to_ist_str
@@ -176,12 +177,14 @@ class ApprovalDetailDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(T.SP_3)
         if status_val.lower() == "pending" and self.on_decision:
-            approve_btn = QPushButton("✓  Approve Request")
+            approve_btn = QPushButton("Approve Request")
+            approve_btn.setIcon(get_icon("check", size=14, color="#FFFFFF"))
             approve_btn.setObjectName("success")
             approve_btn.setMinimumHeight(34)
             approve_btn.clicked.connect(self._handle_approve)
 
-            reject_btn = QPushButton("✗  Reject Request")
+            reject_btn = QPushButton("Reject Request")
+            reject_btn.setIcon(get_icon("cross", size=14, color="#FFFFFF"))
             reject_btn.setObjectName("danger")
             reject_btn.setMinimumHeight(34)
             reject_btn.clicked.connect(self._handle_reject)
@@ -277,7 +280,8 @@ class ApprovalCenterView(QWidget):
         self._search_input.textChanged.connect(self._apply_filters)
         tools_row.addWidget(self._search_input, 1)
 
-        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setIcon(get_icon("refresh", size=14, color=T.TEXT))
         refresh_btn.setObjectName("secondary")
         refresh_btn.clicked.connect(self.refresh_data)
         tools_row.addWidget(refresh_btn)

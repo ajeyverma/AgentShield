@@ -179,6 +179,18 @@ class BackendClient:
             logger.warning("Failed to rotate credential: %s", exc)
             return None
 
+    def delete_agent(self, agent_id: str) -> bool:
+        """Delete an agent connector by ID."""
+        try:
+            resp = self._client.delete(
+                f"{self.api_prefix}/agents/{agent_id}",
+                headers=self._headers(),
+            )
+            return resp.status_code in (200, 204)
+        except Exception as exc:
+            logger.warning("Failed to delete agent %s: %s", agent_id, exc)
+            return False
+
     # ── Activity ─────────────────────────────────────────────────────────────
 
     def get_activity(self, page: int = 1, size: int = 50) -> dict[str, Any] | None:

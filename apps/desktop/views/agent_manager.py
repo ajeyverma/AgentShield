@@ -12,6 +12,7 @@ from apps.desktop.components.page_header  import PageHeader
 from apps.desktop.components.status_badge import StatusBadge, RiskBadge
 from apps.desktop.components.data_table   import DataTable
 from apps.desktop.components.empty_state  import EmptyState
+from apps.desktop.components.icons        import get_pixmap, get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.utils import to_ist_str
 
@@ -87,16 +88,53 @@ def _detail_dialog(agent: AgentRecord, parent) -> None:
     desc.setStyleSheet(f"color:{T.TEXT_SEC}; font-size:{T.FS_MD}px; padding:{T.SP_2}px;")
     lay.addWidget(desc)
 
-    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-    close_btn = btns.button(QDialogButtonBox.StandardButton.Close)
-    if close_btn:
-        close_btn.setStyleSheet(
-            f"QPushButton {{ background-color: {T.PRIMARY}; color: {T.TEXT_ON_PRIMARY}; border: none; "
-            f"border-radius: {T.R_SM}px; padding: 6px 20px; font-weight: 600; min-height: 28px; }} "
-            f"QPushButton:hover {{ background-color: {T.PRIMARY_HOVER}; }}"
+    # Action buttons
+    btn_row = QHBoxLayout()
+    btn_row.setSpacing(T.SP_3)
+
+    remove_btn = QPushButton("Remove Agent")
+    remove_btn.setIcon(get_icon("trash", size=16, color="#DC2626"))
+    remove_btn.setStyleSheet(
+        f"QPushButton {{ background-color: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; "
+        f"border-radius: {T.R_SM}px; padding: 6px 16px; font-weight: 600; min-height: 28px; }} "
+        f"QPushButton:hover {{ background-color: #FEE2E2; }}"
+    )
+
+    def _on_remove():
+        reply = QMessageBox.question(
+            dlg,
+            "Remove Agent",
+            f"Are you sure you want to remove agent '{agent.name}' ({agent.agent_id})?\n\nThis will revoke access credentials and stop runtime protection.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-    btns.rejected.connect(dlg.reject)
-    lay.addWidget(btns)
+        if reply == QMessageBox.StandardButton.Yes:
+            success = backend_client.delete_agent(agent.agent_id)
+            if success:
+                dlg.accept()
+                if hasattr(parent, "refresh_data"):
+                    parent.refresh_data()
+            else:
+                QMessageBox.critical(
+                    dlg,
+                    "Error",
+                    f"Failed to remove agent '{agent.name}'. Check backend connection.",
+                )
+
+    remove_btn.clicked.connect(_on_remove)
+    btn_row.addWidget(remove_btn)
+    btn_row.addStretch()
+
+    close_btn = QPushButton("Close")
+    close_btn.setStyleSheet(
+        f"QPushButton {{ background-color: {T.PRIMARY}; color: {T.TEXT_ON_PRIMARY}; border: none; "
+        f"border-radius: {T.R_SM}px; padding: 6px 20px; font-weight: 600; min-height: 28px; }} "
+        f"QPushButton:hover {{ background-color: {T.PRIMARY_HOVER}; }}"
+    )
+    close_btn.clicked.connect(dlg.reject)
+    btn_row.addWidget(close_btn)
+
+    lay.addLayout(btn_row)
     dlg.exec()
 
 
@@ -239,7 +277,8 @@ class AgentManagerView(QWidget):
         add_btn.clicked.connect(self._open_add_agent_dialog)
         tb.addWidget(add_btn)
 
-        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setIcon(get_icon("refresh", size=14, color=T.TEXT))
         refresh_btn.setObjectName("secondary")
         refresh_btn.setStyleSheet(
             f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:5px 10px; border-radius:{T.R_SM}px;"
@@ -309,11 +348,15 @@ class AgentManagerView(QWidget):
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)
         lay.setSpacing(T.SP_4)
 
-        # Icon
-        icon = QLabel("🤖")
-        icon.setStyleSheet("font-size:24px; background:transparent; border:none;")
-        icon.setFixedWidth(36)
-        lay.addWidget(icon)
+        # Icon (vector icon)
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(get_pixmap("agent", size=24, color=T.PRIMARY))
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_lbl.setFixedSize(38, 38)
+        icon_lbl.setStyleSheet(
+            f"background: #EFF6FF; border: 1px solid #DBEAFE; border-radius: {T.R_MD}px; padding: 4px;"
+        )
+        lay.addWidget(icon_lbl)
 
         # Main info
         info = QVBoxLayout()
@@ -360,7 +403,7 @@ class AgentManagerView(QWidget):
                 item.widget().deleteLater()
 
         if not agents:
-            empty = EmptyState("🤖", "No autonomous agents registered yet. Register an agent via API or CLI to see it here.")
+            empty = EmptyState("agent", "No autonomous agents registered yet. Register an agent via API or CLI to see it here.")
             self._cards_layout.insertWidget(0, empty)
             return
 

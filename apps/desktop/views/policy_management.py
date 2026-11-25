@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 from apps.desktop.components.page_header import PageHeader
 from apps.desktop.components.status_badge import StatusBadge
 from apps.desktop.components.empty_state import EmptyState
+from apps.desktop.components.icons import get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.themes.design_tokens import T
 
@@ -213,7 +214,8 @@ class PolicySimulatorDialog(QDialog):
 
         layout.addLayout(grid)
 
-        run_btn = QPushButton("▶ Run Simulation")
+        run_btn = QPushButton("Run Simulation")
+        run_btn.setIcon(get_icon("play", size=14, color="#FFFFFF"))
         run_btn.setObjectName("primary")
         run_btn.clicked.connect(self._run_simulation)
         layout.addWidget(run_btn)
@@ -227,9 +229,16 @@ class PolicySimulatorDialog(QDialog):
         )
         layout.addWidget(self.result_box)
 
-        close_btn = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        close_btn.rejected.connect(self.reject)
-        layout.addWidget(close_btn)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet(
+            f"QPushButton {{ background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:6px 16px; border-radius:4px; font-weight:600; }}"
+            f"QPushButton:hover {{ background-color:{T.SURFACE_ALT}; }}"
+        )
+        close_btn.clicked.connect(self.reject)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
 
     def _run_simulation(self):
         try:
@@ -298,12 +307,14 @@ class EmergencyControlsDialog(QDialog):
 
         # Quick actions row
         actions_row = QHBoxLayout()
-        pause_btn = QPushButton("⚡ Pause All Executions")
+        pause_btn = QPushButton("Pause All Executions")
+        pause_btn.setIcon(get_icon("pause", size=14, color="#FFFFFF"))
         pause_btn.setObjectName("danger")
         pause_btn.setStyleSheet(f"background-color:{T.DANGER}; color:white; border:none; padding:5px 12px; font-weight:600; border-radius:4px;")
         pause_btn.clicked.connect(lambda: self._activate_quick("PAUSE_EXECUTIONS", "*"))
 
-        deny_btn = QPushButton("🔒 Emergency Deny Mode")
+        deny_btn = QPushButton("Emergency Deny Mode")
+        deny_btn.setIcon(get_icon("shield", size=14, color="#FFFFFF"))
         deny_btn.setObjectName("danger")
         deny_btn.setStyleSheet(f"background-color:{T.DANGER}; color:white; border:none; padding:5px 12px; font-weight:600; border-radius:4px;")
         deny_btn.clicked.connect(lambda: self._activate_quick("EMERGENCY_DENY_MODE", "*"))
@@ -321,7 +332,8 @@ class EmergencyControlsDialog(QDialog):
         )
         layout.addWidget(self.controls_list)
 
-        revoke_btn = QPushButton("✓ Revoke Emergency Control")
+        revoke_btn = QPushButton("Revoke Emergency Control")
+        revoke_btn.setIcon(get_icon("check", size=14, color=T.TEXT))
         revoke_btn.setObjectName("secondary")
         revoke_btn.setStyleSheet(
             f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:4px;"
@@ -419,7 +431,7 @@ class PolicyManagementView(QWidget):
         new_btn.clicked.connect(self._create_policy)
         toolbar.addWidget(new_btn)
 
-        sim_btn = QPushButton("🔬 Policy Simulator")
+        sim_btn = QPushButton("Policy Simulator")
         sim_btn.setObjectName("secondary")
         sim_btn.setStyleSheet(
             f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:{T.R_SM}px;"
@@ -427,7 +439,8 @@ class PolicyManagementView(QWidget):
         sim_btn.clicked.connect(lambda: PolicySimulatorDialog(self).exec())
         toolbar.addWidget(sim_btn)
 
-        emg_btn = QPushButton("🚨 Emergency Controls")
+        emg_btn = QPushButton("Emergency Controls")
+        emg_btn.setIcon(get_icon("alert", size=14, color="#FFFFFF"))
         emg_btn.setObjectName("danger")
         emg_btn.setStyleSheet(
             f"background-color:{T.DANGER}; color:white; border:none; padding:4px 10px; font-weight:600; border-radius:{T.R_SM}px;"
@@ -435,7 +448,8 @@ class PolicyManagementView(QWidget):
         emg_btn.clicked.connect(lambda: EmergencyControlsDialog(self).exec())
         toolbar.addWidget(emg_btn)
 
-        conflicts_btn = QPushButton("⚠ Conflict Analysis")
+        conflicts_btn = QPushButton("Conflict Analysis")
+        conflicts_btn.setIcon(get_icon("alert", size=14, color=T.TEXT))
         conflicts_btn.setObjectName("secondary")
         conflicts_btn.setStyleSheet(
             f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:{T.R_SM}px;"
@@ -445,7 +459,8 @@ class PolicyManagementView(QWidget):
 
         toolbar.addStretch()
 
-        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setIcon(get_icon("refresh", size=14, color=T.TEXT))
         refresh_btn.setObjectName("secondary")
         refresh_btn.setStyleSheet(
             f"background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; padding:4px 10px; border-radius:{T.R_SM}px;"

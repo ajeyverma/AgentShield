@@ -192,6 +192,19 @@ class ThreatService:
         await self.session.commit()
         return self._to_finding_response(finding)
 
+    async def delete_finding(self, finding_id: str, user_id: str) -> bool:
+        """Delete a threat finding by ID."""
+        stmt = select(ThreatFindingModel).where(
+            ThreatFindingModel.id == finding_id,
+            ThreatFindingModel.user_id == user_id,
+        )
+        finding = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not finding:
+            return False
+        await self.session.delete(finding)
+        await self.session.commit()
+        return True
+
     async def get_summary(self, user_id: str) -> ThreatSummaryResponse:
         """Calculate high-level threat findings statistics."""
         # Total count

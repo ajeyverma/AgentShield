@@ -687,6 +687,18 @@ class BackendClient:
             logger.warning("Failed to update finding %s status: %s", finding_id, exc)
             return None
 
+    def delete_threat_finding(self, finding_id: str) -> bool:
+        """Delete single threat finding by ID."""
+        try:
+            resp = self._client.delete(
+                f"{self.api_prefix}/threat-detection/findings/{finding_id}",
+                headers=self._headers(),
+            )
+            return resp.status_code == 200
+        except Exception as exc:
+            logger.warning("Failed to delete finding %s: %s", finding_id, exc)
+            return False
+
     def get_threat_summary(self) -> dict[str, Any] | None:
         """Fetch high-level threat statistics and category distribution."""
         try:

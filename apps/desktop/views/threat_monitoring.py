@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QDialog, QDialogButtonBox, QGridLayout, QTextEdit, QScrollArea,
-    QPushButton, QComboBox,
+    QPushButton, QComboBox, QMessageBox,
 )
 from apps.desktop.themes.design_tokens import T
 from apps.desktop.components.stat_card    import StatCard
@@ -23,7 +23,12 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
     event_id = t.get("id") if is_dict else t.event_id
     dlg.setWindowTitle(f"Threat Finding Detail — {str(event_id)[:16]}")
     dlg.setMinimumWidth(580)
-    dlg.setStyleSheet(f"background:{T.SURFACE};")
+    dlg.setStyleSheet(
+        f"QDialog {{ background:{T.SURFACE}; }} "
+        f"QPushButton {{ padding: 6px 14px; font-weight: 600; border-radius: 6px; font-size: 13px; }} "
+        f"QPushButton#secondary {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; }} "
+        f"QPushButton#secondary:hover {{ background-color: #E2E8F0; }}"
+    )
     lay = QVBoxLayout(dlg)
     lay.setContentsMargins(T.SP_6, T.SP_5, T.SP_6, T.SP_5)
     lay.setSpacing(T.SP_3)
@@ -103,9 +108,49 @@ def _threat_detail(t: dict | ThreatRecord, parent) -> None:
         )
         lay.addWidget(ev_txt)
 
-    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-    btns.rejected.connect(dlg.reject)
-    lay.addWidget(btns)
+    btn_row = QHBoxLayout()
+    btn_row.setSpacing(T.SP_3)
+
+    delete_btn = QPushButton("🗑  Delete Finding")
+    delete_btn.setObjectName("danger")
+    delete_btn.setMinimumHeight(34)
+    delete_btn.setStyleSheet(
+        f"QPushButton {{ background-color: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; font-weight: 600; border-radius: 6px; padding: 6px 14px; font-size: 13px; }}"
+        f"QPushButton:hover {{ background-color: #FCA5A5; color: #991B1B; }}"
+    )
+
+    def _on_delete():
+        reply = QMessageBox.question(
+            dlg,
+            "Delete Threat Finding",
+            "Are you sure you want to permanently delete this threat finding? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            finding_id = str(t.get("id") if is_dict else t.event_id)
+            if backend_client.is_connected:
+                backend_client.delete_threat_finding(finding_id)
+            dlg.accept()
+            if hasattr(parent, "refresh_data"):
+                parent.refresh_data()
+
+    delete_btn.clicked.connect(_on_delete)
+    btn_row.addWidget(delete_btn)
+    btn_row.addStretch()
+
+    close_btn = QPushButton("Cancel / Close")
+    close_btn.setObjectName("secondary")
+    close_btn.setMinimumHeight(34)
+    close_btn.setMinimumWidth(110)
+    close_btn.setStyleSheet(
+        f"QPushButton {{ background-color: #F1F5F9; color: #0F172A; border: 1px solid #CBD5E1; font-weight: 600; border-radius: 6px; padding: 6px 16px; font-size: 13px; }}"
+        f"QPushButton:hover {{ background-color: #E2E8F0; }}"
+    )
+    close_btn.clicked.connect(dlg.reject)
+    btn_row.addWidget(close_btn)
+
+    lay.addLayout(btn_row)
     dlg.exec()
 
 

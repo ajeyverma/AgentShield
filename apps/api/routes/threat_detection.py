@@ -4,6 +4,7 @@ AgentShield AI — Threat Detection API Routes (Phase 5).
 
 from __future__ import annotations
 
+from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 
 from agentshield.contracts.threat import ThreatAnalysisResult
@@ -143,6 +144,28 @@ async def update_threat_finding_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc.message),
         ) from exc
+
+
+@router.delete("/findings/{finding_id}", status_code=status.HTTP_200_OK)
+async def delete_threat_finding(
+    finding_id: str,
+    user: CurrentUser,
+    db: DbSession,
+) -> dict[str, Any]:
+    """Delete a specific threat finding."""
+    service = ThreatService(db)
+    success = await service.delete_finding(finding_id, user.id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Threat finding '{finding_id}' not found.",
+        )
+    await broadcaster.broadcast_event(
+        user.id,
+        "threat.finding.deleted",
+        {"finding_id": finding_id},
+    )
+    return {"message": "Threat finding deleted successfully.", "finding_id": finding_id}
 
 
 @router.get("/summary", response_model=ThreatSummaryResponse)

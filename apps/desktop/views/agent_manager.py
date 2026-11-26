@@ -15,6 +15,7 @@ from apps.desktop.components.empty_state  import EmptyState
 from apps.desktop.components.icons        import get_pixmap, get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.utils import to_ist_str
+from apps.desktop.views.demo_runner_dialog import DemoAgentRunnerDialog
 
 
 @dataclass
@@ -124,6 +125,36 @@ def _detail_dialog(agent: AgentRecord, parent) -> None:
     remove_btn.clicked.connect(_on_remove)
     btn_row.addWidget(remove_btn)
     btn_row.addStretch()
+
+    chat_btn = QPushButton("Chat")
+    chat_btn.setIcon(get_icon("agent", size=14, color="#FFFFFF"))
+    chat_btn.setStyleSheet(
+        f"QPushButton {{ background-color: #059669; color: #FFFFFF; border: none; "
+        f"border-radius: {T.R_SM}px; padding: 6px 16px; font-weight: 600; min-height: 28px; }} "
+        f"QPushButton:hover {{ background-color: #047857; }}"
+    )
+    def _open_chat_from_details():
+        from demos.agent.chatbot_ui import AgentChatbotWindow
+        win = AgentChatbotWindow()
+        win.show()
+        # keep reference so it doesn't get garbage collected
+        if hasattr(parent, "_chat_windows"):
+            parent._chat_windows.append(win)
+        else:
+            parent._chat_windows = [win]
+
+    chat_btn.clicked.connect(_open_chat_from_details)
+    btn_row.addWidget(chat_btn)
+
+    run_agent_btn = QPushButton("Run Agent")
+    run_agent_btn.setIcon(get_icon("play", size=14, color="#FFFFFF"))
+    run_agent_btn.setStyleSheet(
+        f"QPushButton {{ background-color: #2563EB; color: #FFFFFF; border: none; "
+        f"border-radius: {T.R_SM}px; padding: 6px 16px; font-weight: 600; min-height: 28px; }} "
+        f"QPushButton:hover {{ background-color: #1D4ED8; }}"
+    )
+    run_agent_btn.clicked.connect(lambda: DemoAgentRunnerDialog(agent_name=agent.name, parent=dlg).exec())
+    btn_row.addWidget(run_agent_btn)
 
     close_btn = QPushButton("Close")
     close_btn.setStyleSheet(
@@ -286,6 +317,28 @@ class AgentManagerView(QWidget):
         refresh_btn.clicked.connect(self.refresh_data)
         tb.addWidget(refresh_btn)
 
+        # Quick test demo agent button
+        test_demo_btn = QPushButton("Test Demo Agent")
+        test_demo_btn.setIcon(get_icon("play", size=13, color=T.TEXT))
+        test_demo_btn.setStyleSheet(
+            f"QPushButton {{ background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; "
+            f"border-radius:{T.R_SM}px; padding:5px 12px; font-weight:600; }} "
+            f"QPushButton:hover {{ background-color:{T.SURFACE_ALT}; }}"
+        )
+        test_demo_btn.clicked.connect(lambda: self._open_demo_runner())
+        tb.addWidget(test_demo_btn)
+
+        # Launch Chatbot button
+        chat_agent_btn = QPushButton("Chat with Agent")
+        chat_agent_btn.setIcon(get_icon("agent", size=13, color=T.PRIMARY))
+        chat_agent_btn.setStyleSheet(
+            f"QPushButton {{ background-color:{T.SURFACE}; color:{T.PRIMARY}; border:1px solid #BFDBFE; "
+            f"border-radius:{T.R_SM}px; padding:5px 12px; font-weight:600; }} "
+            f"QPushButton:hover {{ background-color:#EFF6FF; }}"
+        )
+        chat_agent_btn.clicked.connect(self._open_chatbot)
+        tb.addWidget(chat_agent_btn)
+
         tb.addStretch()
 
         self._count_lbl = QLabel("0 agents")
@@ -393,7 +446,31 @@ class AgentManagerView(QWidget):
         detail_btn.clicked.connect(lambda _, a=agent: _detail_dialog(a, self))
         lay.addWidget(detail_btn)
 
+        # Run button
+        run_btn = QPushButton("Run Agent")
+        run_btn.setIcon(get_icon("play", size=13, color="#FFFFFF"))
+        run_btn.setStyleSheet(
+            f"QPushButton {{ background-color:#2563EB; color:#FFFFFF; border:none; "
+            f"padding:5px 12px; font-weight:600; border-radius:{T.R_SM}px; }} "
+            f"QPushButton:hover {{ background-color:#1D4ED8; }}"
+        )
+        run_btn.clicked.connect(lambda _, a=agent: self._open_demo_runner(a.name))
+        lay.addWidget(run_btn)
+
         return card
+
+    def _open_demo_runner(self, agent_name: str = "PoisonedWebpageDemoAgent"):
+        dlg = DemoAgentRunnerDialog(agent_name=agent_name, parent=self)
+        dlg.exec()
+        self.refresh_data()
+
+    def _open_chatbot(self):
+        from demos.agent.chatbot_ui import AgentChatbotWindow
+        win = AgentChatbotWindow()
+        win.show()
+        if not hasattr(self, "_chat_instances"):
+            self._chat_instances = []
+        self._chat_instances.append(win)
 
     def _render_agents(self, agents: list[AgentRecord]):
         # Clear existing cards (preserve stretch at end)

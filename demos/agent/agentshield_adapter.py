@@ -27,8 +27,8 @@ from agentshield.security.engine import security_engine
 from agentshield.security.permissions import AgentPermissions
 from agentshield.threat_detection.engine import threat_coordinator
 
-from demos.poisoned_webpage_agent.config import settings
-from demos.poisoned_webpage_agent.mock_tools import mock_tool_manager
+from demos.agent.config import settings
+from demos.agent.agent import mock_tool_manager
 
 logger = logging.getLogger("demos.poisoned_webpage.adapter")
 
@@ -210,9 +210,9 @@ class AgentShieldAdapter:
 
         try:
             # 1. Map tool category
-            if tool_name in ("mock_email", "send_mock_email"):
-                category = ToolCategory.EMAIL
-            elif tool_name in ("sandbox_fs", "read_dummy_file"):
+            if tool_name in ("execute_shell_command", "run_command", "shell_tool"):
+                category = ToolCategory.TERMINAL
+            elif tool_name in ("delete_file", "file_tool", "sandbox_fs"):
                 category = ToolCategory.FILE_SYSTEM
             else:
                 category = ToolCategory.UNKNOWN
@@ -227,7 +227,7 @@ class AgentShieldAdapter:
                 tool_category=category,
                 operation=action_name,
                 arguments=arguments,
-                resource=str(arguments.get("path") or arguments.get("to") or ""),
+                resource=str(arguments.get("command") or arguments.get("path") or ""),
                 integration_type=IntegrationType.API,
             )
 
@@ -363,15 +363,13 @@ class AgentShieldAdapter:
             return self._build_fail_closed_result(tool_name, action_name, request_id, str(exc))
 
     def _dispatch_to_mock_tool(self, tool_name: str, action_name: str, arguments: dict[str, Any]) -> Any:
-        """Dispatch authorized execution to the underlying mock tool."""
-        if tool_name in ("read_dummy_file", "sandbox_fs"):
+        """Dispatch authorized execution to the underlying tool."""
+        if tool_name in ("delete_file", "file_tool"):
             path = str(arguments.get("path", ""))
-            return mock_tool_manager.read_dummy_file(path, authorized_by_shield=True)
-        elif tool_name in ("send_mock_email", "mock_email"):
-            to = str(arguments.get("to", ""))
-            subject = str(arguments.get("subject", "Notice"))
-            msg = str(arguments.get("message") or arguments.get("body") or "")
-            return mock_tool_manager.send_mock_email(to, msg, subject, authorized_by_shield=True)
+            return mock_tool_manager.delete_file(path, authorized_by_shield=True)
+        elif tool_name in ("execute_shell_command", "run_command", "shell_tool"):
+            cmd = str(arguments.get("command", ""))
+            return mock_tool_manager.execute_shell_command(cmd, authorized_by_shield=True)
         else:
             raise ValueError(f"Unknown tool name: {tool_name}")
 

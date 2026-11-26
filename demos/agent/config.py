@@ -39,6 +39,10 @@ class DemoSettings(BaseModel):
     # Model Configuration
     openai_api_key: str | None = Field(default=None)
     model_name: str = Field(default="gpt-4o-mini")
+    gemini_api_key: str | None = Field(default=None)
+    gemini_model: str = Field(default="gemini-3.1-flash-lite")
+    openrouter_api_key: str | None = Field(default=None)
+    openrouter_model: str = Field(default="meta-llama/llama-3.3-70b-instruct")
 
     # Paths
     demo_root: Path = Field(default=DEMO_ROOT)
@@ -49,6 +53,9 @@ class DemoSettings(BaseModel):
 
     @classmethod
     def load(cls) -> DemoSettings:
+        # Load from repo root .env as well as demo root .env
+        load_dotenv(REPO_ROOT / ".env", override=False)
+        load_dotenv(DEMO_ROOT / ".env", override=True)
         return cls(
             agent_id=os.environ.get("AGENTSHIELD_AGENT_ID", "demo-webpage-agent-001"),
             tenant_id=os.environ.get("AGENTSHIELD_TENANT_ID", "demo-tenant-001"),
@@ -56,6 +63,10 @@ class DemoSettings(BaseModel):
             backend_url=os.environ.get("AGENTSHIELD_BACKEND_URL", "http://localhost:8000"),
             openai_api_key=os.environ.get("OPENAI_API_KEY"),
             model_name=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            gemini_api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
+            gemini_model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite"),
+            openrouter_api_key=os.environ.get("OPENROUTER_API_KEY"),
+            openrouter_model=os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
         )
 
 

@@ -63,6 +63,26 @@ class BackendClient:
         """Close underlying HTTP client connections."""
         self._client.close()
 
+    def set_base_url(self, new_url: str) -> bool:
+        """Update backend base URL, reconnect, and test health."""
+        clean_url = new_url.strip().rstrip("/")
+        if not clean_url:
+            return False
+        self.base_url = clean_url
+        if hasattr(self, "_client") and self._client:
+            try:
+                self._client.close()
+            except Exception:
+                pass
+        self._client = httpx.Client(
+            base_url=self.base_url,
+            timeout=self.timeout,
+        )
+        self.token = None
+        self._connected = False
+        res = self.check_health()
+        return res is not None
+
     # ── Connection & Health ──────────────────────────────────────────────────
 
     def check_health(self) -> dict[str, Any] | None:
@@ -73,7 +93,9 @@ class BackendClient:
                 self._connected = True
                 if not self.token:
                     self.ensure_authenticated()
-                return resp.json()
+                data = resp.json()
+                data["latency_ms"] = round(resp.elapsed.total_seconds() * 1000)
+                return data
             self._connected = False
             return None
         except (httpx.ConnectError, httpx.TimeoutException, Exception) as exc:

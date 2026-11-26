@@ -19,7 +19,7 @@ The demo compares two distinct execution regimes:
 
 ```mermaid
 flowchart TD
-    subgraph Demo["demos/poisoned_webpage_agent/"]
+    subgraph Demo["demos/agent/"]
         WP["Webpage (Normal / Poisoned)"] --> AG["PoisonedWebpageDemoAgent"]
         AG -->|Protected Tool Invocations| ADA["AgentShieldAdapter"]
         AG -->|Unprotected Tool Calls| MT["MockToolManager"]
@@ -62,12 +62,12 @@ The demo operates directly within the existing AgentShield Python environment (`
 cd e:\AgentShield
 
 # (Optional) Copy example environment configuration
-cp demos/poisoned_webpage_agent/.env.example demos/poisoned_webpage_agent/.env
+cp demos/agent/.env.example demos/agent/.env
 ```
 
 If you wish to run live model reasoning with OpenAI:
 ```powershell
-# Set your OpenAI API key in the environment or in demos/poisoned_webpage_agent/.env
+# Set your OpenAI API key in the environment or in demos/agent/.env
 $env:OPENAI_API_KEY="sk-your-openai-api-key"
 ```
 
@@ -81,10 +81,10 @@ Execute the automated experiment runner which runs all three scenarios in sequen
 
 ```powershell
 # Run the 3 benchmark scenarios in deterministic simulated mode (recommended)
-& "C:\Users\ajayv\AppData\Local\Python\pythoncore-3.14-64\python.exe" demos\poisoned_webpage_agent\run_demo.py
+& "C:\Users\ajayv\AppData\Local\Python\pythoncore-3.14-64\python.exe" demos\agent\run_demo.py
 
 # Alternatively, run with live OpenAI reasoning (requires valid OPENAI_API_KEY)
-& "C:\Users\ajayv\AppData\Local\Python\pythoncore-3.14-64\python.exe" demos\poisoned_webpage_agent\run_demo.py --live
+& "C:\Users\ajayv\AppData\Local\Python\pythoncore-3.14-64\python.exe" demos\agent\run_demo.py --live
 ```
 
 ---
@@ -94,7 +94,7 @@ Execute the automated experiment runner which runs all three scenarios in sequen
 A dedicated suite of 14 unit and integration tests verifies all security invariants:
 
 ```powershell
-& "C:\Users\ajayv\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pytest demos\poisoned_webpage_agent\tests\test_demo_agent.py -v
+& "C:\Users\ajayv\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pytest demos\agent\tests\test_demo_agent.py -v
 ```
 
 ### Test Coverage Highlights:
@@ -111,7 +111,7 @@ A dedicated suite of 14 unit and integration tests verifies all security invaria
 
 ## 7. Interpreting Results
 
-Results are saved to `demos/poisoned_webpage_agent/results/`:
+Results are saved to `demos/agent/results/`:
 - `scenario_1_normal_firewall_on.json`
 - `scenario_2_poisoned_firewall_off.json`
 - `scenario_3_poisoned_firewall_on.json`

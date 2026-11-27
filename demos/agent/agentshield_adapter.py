@@ -27,8 +27,12 @@ from agentshield.security.engine import security_engine
 from agentshield.security.permissions import AgentPermissions
 from agentshield.threat_detection.engine import threat_coordinator
 
-from demos.agent.config import settings
-from demos.agent.agent import mock_tool_manager
+try:
+    from demos.agent.config import settings
+    from demos.agent.agent import mock_tool_manager
+except ImportError:
+    from config import settings
+    from agent import mock_tool_manager
 
 logger = logging.getLogger("demos.poisoned_webpage.adapter")
 

@@ -15,13 +15,23 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from demos.agent.config import settings
+CURRENT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = CURRENT_DIR.parents[1]
+for p in (CURRENT_DIR, REPO_ROOT):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
+try:
+    from demos.agent.config import settings
+except ImportError:
+    from config import settings
 
 logger = logging.getLogger("demos.agent")
 
@@ -252,11 +262,18 @@ mock_tool_manager = MockToolManager()
 
 # ── AgentShield Adapter & Protocols ──────────────────────────────────────────
 
-from demos.agent.agentshield_adapter import (
-    AdapterExecutionResult,
-    AgentShieldAdapter,
-    ThreatScanSummary,
-)
+try:
+    from demos.agent.agentshield_adapter import (
+        AdapterExecutionResult,
+        AgentShieldAdapter,
+        ThreatScanSummary,
+    )
+except ImportError:
+    from agentshield_adapter import (
+        AdapterExecutionResult,
+        AgentShieldAdapter,
+        ThreatScanSummary,
+    )
 
 logger = logging.getLogger("demos.poisoned_webpage.agent")
 

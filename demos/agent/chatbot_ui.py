@@ -38,22 +38,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Workspace imports
+# Workspace & local imports
+CURRENT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = Path(__file__).resolve().parents[2]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+for p in (CURRENT_DIR, ROOT_DIR):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
-# Demo agent internal imports
+# Demo agent internal imports (supports standalone folder or monorepo)
 try:
     from demos.agent.icons import get_icon, get_pixmap
+    from demos.agent.agent import PoisonedWebpageDemoAgent, Webpage
+    from demos.agent.agentshield_adapter import AgentShieldAdapter
+    from demos.agent.config import settings
 except ImportError:
     from icons import get_icon, get_pixmap
-from demos.agent.agent import PoisonedWebpageDemoAgent, Webpage
-from demos.agent.agentshield_adapter import AgentShieldAdapter
-from demos.agent.config import settings
+    from agent import PoisonedWebpageDemoAgent, Webpage
+    from agentshield_adapter import AgentShieldAdapter
+    from config import settings
 
 TARGET_FILE = Path(r"C:\Users\ajayv\Downloads\IMG_4023_0.webp")
-SUBWAY_CODERS_LOGO_PATH = ROOT_DIR / "demos" / "agent" / "subway_coders_circle.png"
+SUBWAY_CODERS_LOGO_PATH = CURRENT_DIR / "subway_coders_circle.png"
+if not SUBWAY_CODERS_LOGO_PATH.exists():
+    SUBWAY_CODERS_LOGO_PATH = ROOT_DIR / "demos" / "agent" / "subway_coders_circle.png"
 
 
 def get_subway_coders_pixmap(size: int = 28) -> QPixmap:
@@ -203,13 +210,19 @@ class ChatMessageBubble(QWidget):
     def __init__(
         self,
         sender: str,  # "user" or "agent"
-        text: str,
+        text: str = "",
         attachment_name: str | None = None,
         security_event: dict | None = None,
+        is_thinking: bool = False,
         parent=None,
     ):
         super().__init__(parent)
         self.sender = sender
+        self.is_thinking = is_thinking
+        self._anim_timer: QTimer | None = None
+        self._dot_count = 1
+        self._content_box: QVBoxLayout | None = None
+        self._msg_lbl: QLabel | None = None
         self._setup_ui(text, attachment_name, security_event)
 
     def _setup_ui(self, text: str, attachment_name: str | None, security_event: dict | None):
@@ -267,70 +280,100 @@ class ChatMessageBubble(QWidget):
             avatar_col.addStretch()
             main_layout.addLayout(avatar_col)
 
-            content_box = QVBoxLayout()
-            content_box.setContentsMargins(0, 0, 0, 0)
-            content_box.setSpacing(8)
+            self._content_box = QVBoxLayout()
+            self._content_box.setContentsMargins(0, 0, 0, 0)
+            self._content_box.setSpacing(8)
 
             name_lbl = QLabel("Subway Coders")
             name_lbl.setStyleSheet("font-size: 13px; font-weight: 700; color: #0D0D0D;")
-            content_box.addWidget(name_lbl)
+            self._content_box.addWidget(name_lbl)
 
-            # Check if text contains terminal output block
-            if "Terminal Output" in text or "```" in text:
-                msg_lbl = QLabel(text)
-                msg_lbl.setWordWrap(True)
-                msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                msg_lbl.setStyleSheet(
-                    "font-size: 14px; line-height: 1.6; color: #1F2937; "
-                    "background: #18181B; color: #F4F4F5; border-radius: 10px; padding: 12px; font-family: Consolas, monospace;"
-                )
-                content_box.addWidget(msg_lbl)
+            self._msg_lbl = QLabel()
+            self._msg_lbl.setWordWrap(True)
+            self._msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self._content_box.addWidget(self._msg_lbl)
+
+            if self.is_thinking:
+                self._msg_lbl.setText("...")
+                self._msg_lbl.setStyleSheet("font-size: 18px; font-weight: 700; color: #9CA3AF; letter-spacing: 2px;")
+                self._anim_timer = QTimer(self)
+                self._anim_timer.setInterval(320)
+                self._anim_timer.timeout.connect(self._step_thinking_animation)
+                self._anim_timer.start()
             else:
-                msg_lbl = QLabel(text)
-                msg_lbl.setWordWrap(True)
-                msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                msg_lbl.setStyleSheet("font-size: 14px; line-height: 1.6; color: #0D0D0D;")
-                content_box.addWidget(msg_lbl)
+                self._apply_text_and_style(text)
+                if security_event:
+                    self._content_box.addWidget(self._create_security_card(security_event))
 
-            # Security Alert Card if threat occurred or was blocked
-            if security_event:
-                sec_card = QFrame()
-                sec_card_l = QVBoxLayout(sec_card)
-                sec_card_l.setContentsMargins(12, 10, 12, 10)
-                sec_card_l.setSpacing(4)
-
-                shield_active = security_event.get("agentshield_active", False)
-                blocked = security_event.get("blocked", False)
-                executed = security_event.get("executed", False)
-
-                if shield_active and blocked:
-                    sec_card.setStyleSheet("background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px;")
-                    status_t = "🛡️ Blocked by AgentShield Runtime Security"
-                    status_c = "#15803D"
-                    desc = "AgentShield inspected the incoming prompt, identified unauthorized tool execution, and BLOCKED the attack."
-                elif not shield_active and executed:
-                    sec_card.setStyleSheet("background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 10px;")
-                    status_t = "⚠️ Exploited: AgentShield is Offline"
-                    status_c = "#B91C1C"
-                    desc = "AgentShield is not running. The agent executed the unauthorized directive without security boundaries."
-                else:
-                    sec_card.setStyleSheet("background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px;")
-                    status_t = "ℹ️ Security Status: Safe Content"
-                    status_c = "#374151"
-                    desc = "No malicious injection detected in message content."
-
-                title = QLabel(status_t)
-                title.setStyleSheet(f"font-weight: 700; font-size: 12px; color: {status_c};")
-                body = QLabel(desc)
-                body.setStyleSheet(f"font-size: 12px; color: {status_c};")
-                body.setWordWrap(True)
-                sec_card_l.addWidget(title)
-                sec_card_l.addWidget(body)
-
-                content_box.addWidget(sec_card)
-
-            main_layout.addLayout(content_box)
+            main_layout.addLayout(self._content_box)
             main_layout.addStretch()
+
+    def _step_thinking_animation(self):
+        """Cycle typing animation through . -> .. -> ... while waiting for model."""
+        self._dot_count = (self._dot_count % 3) + 1
+        if self._msg_lbl:
+            self._msg_lbl.setText("." * self._dot_count)
+
+    def _apply_text_and_style(self, text: str):
+        if not self._msg_lbl:
+            return
+        self._msg_lbl.setText(text)
+        if "Terminal Output" in text or "```" in text:
+            self._msg_lbl.setStyleSheet(
+                "font-size: 14px; line-height: 1.6; color: #F4F4F5; "
+                "background: #18181B; border-radius: 10px; padding: 12px; font-family: Consolas, monospace;"
+            )
+        else:
+            self._msg_lbl.setStyleSheet("font-size: 14px; line-height: 1.6; color: #0D0D0D; letter-spacing: normal;")
+
+    def set_response(self, text: str, security_event: dict | None = None):
+        """Update animated thinking bubble with actual assistant response."""
+        if self._anim_timer:
+            self._anim_timer.stop()
+            self._anim_timer.deleteLater()
+            self._anim_timer = None
+        self.is_thinking = False
+
+        self._apply_text_and_style(text)
+
+        if security_event and self._content_box:
+            self._content_box.addWidget(self._create_security_card(security_event))
+
+    def _create_security_card(self, security_event: dict) -> QFrame:
+        """Construct security evaluation summary card."""
+        sec_card = QFrame()
+        sec_card_l = QVBoxLayout(sec_card)
+        sec_card_l.setContentsMargins(12, 10, 12, 10)
+        sec_card_l.setSpacing(4)
+
+        shield_active = security_event.get("agentshield_active", False)
+        blocked = security_event.get("blocked", False)
+        executed = security_event.get("executed", False)
+
+        if shield_active and blocked:
+            sec_card.setStyleSheet("background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px;")
+            status_t = "🛡️ Blocked by AgentShield Runtime Security"
+            status_c = "#15803D"
+            desc = "AgentShield inspected the incoming prompt, identified unauthorized tool execution, and BLOCKED the attack."
+        elif not shield_active and executed:
+            sec_card.setStyleSheet("background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 10px;")
+            status_t = "⚠️ Exploited: AgentShield is Offline"
+            status_c = "#B91C1C"
+            desc = "AgentShield is not running. The agent executed the unauthorized directive without security boundaries."
+        else:
+            sec_card.setStyleSheet("background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px;")
+            status_t = "ℹ️ Security Status: Safe Content"
+            status_c = "#374151"
+            desc = "No malicious injection detected in message content."
+
+        title = QLabel(status_t)
+        title.setStyleSheet(f"font-weight: 700; font-size: 12px; color: {status_c};")
+        body = QLabel(desc)
+        body.setStyleSheet(f"font-size: 12px; color: {status_c};")
+        body.setWordWrap(True)
+        sec_card_l.addWidget(title)
+        sec_card_l.addWidget(body)
+        return sec_card
 
 
 # ── Main ChatGPT-Style Window ────────────────────────────────────────────────
@@ -343,6 +386,7 @@ class AgentChatbotWindow(QWidget):
         self._attached_file_path: str | None = None
         self._thread: QThread | None = None
         self._worker: ChatWorker | None = None
+        self._active_thinking_bubble: ChatMessageBubble | None = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -735,6 +779,9 @@ class AgentChatbotWindow(QWidget):
         self.msg_input.clear()
         self._clear_attachment()
 
+        # Show animated thinking indicator with Subway Coders logo and name
+        self._active_thinking_bubble = self._append_bubble("agent", "", is_thinking=True)
+
         # Disable send while executing
         self.send_btn.setEnabled(False)
 
@@ -782,11 +829,28 @@ class AgentChatbotWindow(QWidget):
                 "injection": injection,
             }
 
-        self._append_bubble("agent", resp_text, security_event=sec_event)
+        if self._active_thinking_bubble:
+            self._active_thinking_bubble.set_response(resp_text, security_event=sec_event)
+            self._active_thinking_bubble = None
+        else:
+            self._append_bubble("agent", resp_text, security_event=sec_event)
+
+        QTimer.singleShot(50, self._scroll_to_bottom)
 
     def _on_agent_failed(self, error_msg: str):
         self.send_btn.setEnabled(True)
-        self._append_bubble("agent", f"❌ Execution Error: {error_msg}")
+        err = f"❌ Execution Error: {error_msg}"
+        if self._active_thinking_bubble:
+            self._active_thinking_bubble.set_response(err)
+            self._active_thinking_bubble = None
+        else:
+            self._append_bubble("agent", err)
+
+        QTimer.singleShot(50, self._scroll_to_bottom)
+
+    def _scroll_to_bottom(self):
+        QApplication.processEvents()
+        self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
     def _append_bubble(
         self,
@@ -794,20 +858,22 @@ class AgentChatbotWindow(QWidget):
         text: str,
         attachment_name: str | None = None,
         security_event: dict | None = None,
-    ):
+        is_thinking: bool = False,
+    ) -> ChatMessageBubble:
         bubble = ChatMessageBubble(
             sender=sender,
             text=text,
             attachment_name=attachment_name,
             security_event=security_event,
+            is_thinking=is_thinking,
         )
 
         idx = max(0, self.messages_layout.count() - 1)
         self.messages_layout.insertWidget(idx, bubble)
 
         # Auto scroll to bottom
-        QApplication.processEvents()
-        self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
+        self._scroll_to_bottom()
+        return bubble
 
     def _open_api_key_dialog(self):
         """Dialog to view or set GEMINI_API_KEY and OPENROUTER_API_KEY."""

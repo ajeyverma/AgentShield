@@ -40,11 +40,12 @@ Source: "..\..\apps\desktop\assets\icon.ico"; DestDir: "{app}\assets"; Flags: ig
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\icon.ico"
+Name: "{autoprograms}\Subway Coders (AI Agent)"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--chatbot"; IconFilename: "{app}\assets\icon.ico"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\assets\icon.ico"
+Name: "{autodesktop}\Subway Coders"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--chatbot"; Tasks: desktopicon; IconFilename: "{app}\assets\icon.ico"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: files; Name: "{app}\*.log"
-; Do NOT delete %APPDATA%\AgentShield user config or audit logs during uninstall

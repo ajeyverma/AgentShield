@@ -4,33 +4,47 @@
 # ==============================================================================
 
 import os
+import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 project_root = Path(os.path.abspath(".")).resolve()
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Static assets to bundle
 datas = [
     (str(project_root / "apps" / "desktop" / "assets"), "apps/desktop/assets"),
     (str(project_root / "config"), "config"),
+    (str(project_root / "demos" / "agent" / "data"), "demos/agent/data"),
 ]
+if (project_root / "demos" / "agent" / ".env").exists():
+    datas.append((str(project_root / "demos" / "agent" / ".env"), "demos/agent"))
+if (project_root / "agentshield_dev.db").exists():
+    datas.append((str(project_root / "agentshield_dev.db"), "."))
 
 # Hidden imports needed for runtime reflection
-hiddenimports = [
-    "PySide6.QtCore",
-    "PySide6.QtWidgets",
-    "PySide6.QtGui",
-    "agentshield.contracts",
-    "agentshield.contracts.enums",
-    "agentshield.contracts.execution",
-    "agentshield.contracts.events",
-    "agentshield.core.config",
-    "agentshield.core.logging",
-    "agentshield.security.sanitization",
-    "httpx",
-    "pydantic",
-    "pydantic_settings",
-]
+hiddenimports = (
+    collect_submodules("agentshield")
+    + collect_submodules("demos.agent")
+    + collect_submodules("apps.desktop")
+    + collect_submodules("sqlalchemy")
+    + [
+        "PySide6.QtCore",
+        "PySide6.QtWidgets",
+        "PySide6.QtGui",
+        "httpx",
+        "pydantic",
+        "pydantic_settings",
+        "dotenv",
+        "openai",
+        "sqlite3",
+        "uuid",
+        "json",
+        "logging",
+    ]
+)
 
 # Excluded packages to keep binary lean and secure
 excludes = [
@@ -71,7 +85,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,  # Windowed GUI mode (no command prompt window)
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -87,7 +101,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name="AgentShield",
 )

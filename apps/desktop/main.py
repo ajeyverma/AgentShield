@@ -42,6 +42,13 @@ def main() -> int:
         app.setOrganizationName("AgentShield AI")
 
         # Import after QApplication creation to avoid PySide6 init ordering issues
+        if "--chatbot" in sys.argv or "--agent" in sys.argv:
+            from demos.agent.chatbot_ui import AgentChatbotWindow
+            window = AgentChatbotWindow()
+            window.show()
+            logger.info("Subway Coders agent chatbot started directly.")
+            return app.exec()
+
         from apps.desktop.app.main_window import MainWindow
         from apps.desktop.themes.design_tokens import T  # noqa: PLC0415
 

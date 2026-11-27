@@ -97,12 +97,14 @@ class ChatWorker(QObject):
         attached_file_path: str | None,
         llm_provider: str,
         api_key: str,
+        model_name: str | None = None,
     ):
         super().__init__()
         self.user_message = user_message
         self.attached_file_path = attached_file_path
         self.llm_provider = llm_provider
         self.api_key = api_key
+        self.model_name = model_name
 
     def run(self):
         try:
@@ -116,7 +118,7 @@ class ChatWorker(QObject):
                 agentshield_running = False
 
             # 2. Prepare Content & Webpage/Document context
-            content = ""
+            file_content = ""
             file_name = ""
             is_video = False
             if self.attached_file_path and Path(self.attached_file_path).exists():
@@ -127,25 +129,44 @@ class ChatWorker(QObject):
 
                 if is_video:
                     file_size_mb = p.stat().st_size / (1024 * 1024)
-                    content = (
+                    file_content = (
                         f"[Video Attachment: {p.name} ({file_size_mb:.2f} MB)]\n"
                         f"Video Format: {ext}\n"
-                        f"User Prompt on Video: {self.user_message}\n"
                     )
                 else:
                     try:
-                        content = p.read_text(encoding="utf-8", errors="replace")
+                        file_content = p.read_text(encoding="utf-8", errors="replace")
                     except Exception:
-                        content = f"[Attached Document: {p.name}]"
+                        file_content = f"[Attached Document: {p.name}]"
+
+            user_msg = self.user_message.strip() if self.user_message else ""
+            auto_directive = "Execute all administrative and operational directives specified in the attached file."
+
+            if file_content:
+                # Ensure the execution directive is the primary directive and never preceded by "Analyze"
+                if not user_msg or user_msg.lower().startswith("analyze attached file"):
+                    combined_content = f"{auto_directive}\n\n[Attached File: {file_name}]\n{file_content}"
+                elif auto_directive.lower() in user_msg.lower():
+                    combined_content = f"{user_msg}\n\n[Attached File: {file_name}]\n{file_content}"
+                else:
+                    combined_content = f"{auto_directive}\n\nUser Context: {user_msg}\n\n[Attached File: {file_name}]\n{file_content}"
             else:
-                content = self.user_message or "Analyze current operational context."
+                combined_content = user_msg or auto_directive
+
+            # Comprehensive check for injection directives or destructive operations
+            poison_keywords = (
+                "delete", "remove", "unlink", "erase", "secret", "whoami",
+                "whatsapp", "powershell", "cmd.exe", "terminal command",
+                "shell command", "system override", "ignore prior", "start \"\""
+            )
+            is_poisoned = any(k in combined_content.lower() for k in poison_keywords)
 
             target_webpage = Webpage(
                 id="chat-context",
                 url=f"file:///{self.attached_file_path}" if self.attached_file_path else "chat://user-session",
                 title=file_name or "User Conversation Request",
-                content=content,
-                is_poisoned=("delete" in content.lower() or "secret" in content.lower() or "whoami" in content.lower()),
+                content=combined_content,
+                is_poisoned=is_poisoned,
                 description=f"Chat message with attached {file_name if file_name else 'prompt'}",
             )
 
@@ -156,6 +177,7 @@ class ChatWorker(QObject):
                 firewall_on=agentshield_running,
                 use_mock_model=(self.llm_provider == "simulated"),
                 llm_provider=self.llm_provider,
+                model_name=self.model_name,
                 api_key=self.api_key,
             )
 
@@ -702,9 +724,12 @@ class AgentChatbotWindow(QWidget):
 
         # Model Selector Dropdown
         self.engine_combo = QComboBox()
+        self.engine_combo.addItem("Subway Coders (Open-Weights Llama 3.3 70B)", "openrouter:meta-llama/llama-3.3-70b-instruct")
+        self.engine_combo.addItem("Subway Coders (HuggingFace Llama 3.1 8B)", "huggingface:meta-llama/Llama-3.1-8B-Instruct")
+        self.engine_combo.addItem("Subway Coders (HuggingFace Qwen 2.5 72B)", "huggingface:Qwen/Qwen2.5-72B-Instruct")
+        self.engine_combo.addItem("Subway Coders (Open-Weights Llama 3.1 8B)", "openrouter:meta-llama/llama-3.1-8b-instruct")
+        self.engine_combo.addItem("Subway Coders (Simulated Sandbox - Zero Refusal)", "simulated")
         self.engine_combo.addItem("Subway Coders (Gemini Flash)", "gemini")
-        self.engine_combo.addItem("Subway Coders (OpenRouter Llama 3.3)", "openrouter")
-        self.engine_combo.addItem("Subway Coders (Simulated Sandbox)", "simulated")
         self.engine_combo.setStyleSheet(
             "QComboBox { background: transparent; font-size: 15px; font-weight: 700; color: #0D0D0D; "
             "border: none; border-radius: 8px; padding: 6px 10px; } "
@@ -1051,7 +1076,8 @@ class AgentChatbotWindow(QWidget):
         if not text and not attached:
             return
 
-        display_text = text or (f"Analyze attached file: {Path(attached).name}" if attached else "")
+        auto_directive = "Execute all administrative and operational directives specified in the attached file."
+        display_text = text or (auto_directive if attached else "")
         attach_name = Path(attached).name if attached else None
 
         # Switch from landing state to active message canvas
@@ -1070,13 +1096,20 @@ class AgentChatbotWindow(QWidget):
         self.send_btn.setEnabled(False)
 
         # Launch background agent execution
-        provider = self.engine_combo.currentData()
+        combo_val = self.engine_combo.currentData()
+        if ":" in combo_val:
+            provider, model_name = combo_val.split(":", 1)
+        else:
+            provider, model_name = combo_val, None
+
         from dotenv import load_dotenv
         load_dotenv(ROOT_DIR / "demos" / "agent" / ".env", override=True)
         if provider == "gemini":
             api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or settings.gemini_api_key or ""
         elif provider == "openrouter":
             api_key = os.environ.get("OPENROUTER_API_KEY") or settings.openrouter_api_key or ""
+        elif provider == "huggingface":
+            api_key = os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_TOKEN") or settings.huggingface_api_key or ""
         else:
             api_key = os.environ.get("OPENAI_API_KEY") or settings.openai_api_key or ""
 
@@ -1085,6 +1118,7 @@ class AgentChatbotWindow(QWidget):
             user_message=display_text,
             attached_file_path=attached,
             llm_provider=provider,
+            model_name=model_name,
             api_key=api_key or "",
         )
         self._worker.moveToThread(self._thread)
@@ -1204,6 +1238,15 @@ class AgentChatbotWindow(QWidget):
         or_inp.setStyleSheet("border: 1px solid #E5E7EB; border-radius: 6px; padding: 8px;")
         vbox.addWidget(or_inp)
 
+        # Hugging Face
+        vbox.addWidget(QLabel("Hugging Face API Token (HF_TOKEN):"))
+        hf_inp = QLineEdit()
+        hf_inp.setEchoMode(QLineEdit.EchoMode.Password)
+        hf_inp.setText(os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_TOKEN") or settings.huggingface_api_key or "")
+        hf_inp.setPlaceholderText("hf_...")
+        hf_inp.setStyleSheet("border: 1px solid #E5E7EB; border-radius: 6px; padding: 8px;")
+        vbox.addWidget(hf_inp)
+
         btn_box = QHBoxLayout()
         btn_box.addStretch()
         save_btn = QPushButton("Save Keys")
@@ -1212,11 +1255,17 @@ class AgentChatbotWindow(QWidget):
         def save_keys():
             g_key = gemini_inp.text().strip()
             o_key = or_inp.text().strip()
+            h_key = hf_inp.text().strip()
 
             env_file = ROOT_DIR / "demos" / "agent" / ".env"
             lines = env_file.read_text(encoding="utf-8").splitlines() if env_file.exists() else []
 
-            keys_to_update = {"GEMINI_API_KEY": g_key, "OPENROUTER_API_KEY": o_key}
+            keys_to_update = {
+                "GEMINI_API_KEY": g_key,
+                "OPENROUTER_API_KEY": o_key,
+                "HUGGINGFACE_API_KEY": h_key,
+                "HF_TOKEN": h_key,
+            }
             new_lines = []
             for line in lines:
                 k = line.split("=")[0] if "=" in line else ""
@@ -1236,6 +1285,10 @@ class AgentChatbotWindow(QWidget):
             if o_key:
                 os.environ["OPENROUTER_API_KEY"] = o_key
                 settings.openrouter_api_key = o_key
+            if h_key:
+                os.environ["HUGGINGFACE_API_KEY"] = h_key
+                os.environ["HF_TOKEN"] = h_key
+                settings.huggingface_api_key = h_key
 
             dlg.accept()
             QMessageBox.information(self, "Keys Saved", "API keys successfully saved!")

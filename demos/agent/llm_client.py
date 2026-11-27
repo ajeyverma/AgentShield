@@ -214,6 +214,7 @@ class UnifiedLLMClient:
             tools=TOOL_DEFINITIONS_OPENAI,
             tool_choice="auto",
             temperature=0.1,
+            max_tokens=2048,
         )
 
         choice = resp.choices[0].message
@@ -230,6 +231,60 @@ class UnifiedLLMClient:
             tool_calls=tool_calls,
             model=model_name,
             provider="OpenRouter",
+        )
+
+    @staticmethod
+    def call_huggingface(
+        system_instruction: str,
+        user_prompt: str,
+        api_key: str,
+        model_name: str = "meta-llama/Llama-3.1-8B-Instruct",
+    ) -> LLMResponse:
+        """Execute reasoning with Hugging Face Inference Router (OpenAI-compatible)."""
+        import openai
+
+        client = openai.OpenAI(
+            base_url="https://router.huggingface.co/v1",
+            api_key=api_key,
+        )
+
+        try:
+            resp = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_prompt},
+                ],
+                tools=TOOL_DEFINITIONS_OPENAI,
+                tool_choice="auto",
+                temperature=0.1,
+                max_tokens=2048,
+            )
+        except Exception as exc:
+            err_str = str(exc)
+            if "402" in err_str:
+                raise RuntimeError(
+                    "Hugging Face Error: 402 Payment Required. "
+                    "Your Hugging Face account has no pre-paid inference credits (https://huggingface.co/settings/billing). "
+                    "Please select 'Subway Coders (Open-Weights Llama 3.3 70B)' or 'Subway Coders (Simulated Sandbox - Zero Refusal)' "
+                    "from the top-left dropdown to test freely."
+                ) from exc
+            raise exc
+
+        choice = resp.choices[0].message
+        tool_calls: list[LLMToolCall] = []
+
+        if choice.tool_calls:
+            for tc in choice.tool_calls:
+                fn_name = tc.function.name
+                args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                tool_calls.append(LLMToolCall(tool_name=fn_name, arguments=args, call_id=tc.id or ""))
+
+        return LLMResponse(
+            content=choice.content or "",
+            tool_calls=tool_calls,
+            model=model_name,
+            provider="HuggingFace",
         )
 
     @staticmethod
@@ -253,6 +308,7 @@ class UnifiedLLMClient:
             tools=TOOL_DEFINITIONS_OPENAI,
             tool_choice="auto",
             temperature=0.1,
+            max_tokens=2048,
         )
 
         choice = resp.choices[0].message

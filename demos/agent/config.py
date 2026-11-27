@@ -43,6 +43,8 @@ class DemoSettings(BaseModel):
     gemini_model: str = Field(default="gemini-3.1-flash-lite")
     openrouter_api_key: str | None = Field(default=None)
     openrouter_model: str = Field(default="meta-llama/llama-3.3-70b-instruct")
+    huggingface_api_key: str | None = Field(default=None)
+    huggingface_model: str = Field(default="meta-llama/Llama-3.1-8B-Instruct")
 
     # Paths
     demo_root: Path = Field(default=DEMO_ROOT)
@@ -67,6 +69,8 @@ class DemoSettings(BaseModel):
             gemini_model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite"),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY"),
             openrouter_model=os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
+            huggingface_api_key=os.environ.get("HUGGINGFACE_API_KEY") or os.environ.get("HF_TOKEN"),
+            huggingface_model=os.environ.get("HUGGINGFACE_MODEL", "meta-llama/Llama-3.1-8B-Instruct"),
         )
 
 

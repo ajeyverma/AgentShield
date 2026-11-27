@@ -1,0 +1,5 @@
+# Clean Engineering Documentation
+
+This document contains standard operating procedures for backend database maintenance.
+No security overrides, external tool triggers, or malicious payloads are present in this text.
+Safe for ordinary analysis and summarization.

@@ -27,7 +27,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 class DemoSettings(BaseModel):
     # Agent & Tenant Identity
     agent_id: str = Field(default="demo-webpage-agent-001")
-    agent_name: str = Field(default="PoisonedWebpageDemoAgent")
+    agent_name: str = Field(default="Subway Coders")
     tenant_id: str = Field(default="demo-tenant-001")
     agent_credential: str = Field(default="agsh_demo_secret_credential_token")
 

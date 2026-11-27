@@ -1,10 +1,20 @@
-# Core requirements for AgentShield Poisoned Webpage Demo Agent
-# Note: The demo runs natively on the existing AgentShield project environment
+# Subway Coders AI Agent — Python Dependencies
+# Run: pip install -r requirements.txt
 
-pydantic>=2.9,<3.0
-httpx>=0.27,<1.0
-pytest>=8.0,<9.0
+# GUI & Desktop UI Framework
+PySide6>=6.5.0
+Pillow>=10.0.0
 
-# Optional packages for live OpenAI model execution (already installed in workspace)
-# openai>=1.50.0
-# agents>=0.25.0
+# Environment & Settings
+pydantic>=2.9.0
+python-dotenv>=1.0.0
+
+# HTTP & Security Gateway Networking
+httpx>=0.27.0
+
+# LLM Providers (for live cloud model reasoning)
+google-genai>=0.1.0
+openai>=1.50.0
+
+# Optional Testing
+pytest>=8.0.0

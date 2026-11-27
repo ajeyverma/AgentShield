@@ -1,12 +1,13 @@
 """
-AgentShield AI — Interactive Autonomous Chatbot UI.
+AgentShield AI — Interactive Autonomous Chatbot UI (ChatGPT Style).
 
-A modern, full-featured AI Chatbot interface featuring:
-- Live conversation flow with formatted user & assistant bubbles
-- Attachment buttons for Document/File Upload and Video Upload
-- Live model switching: Google Gemini (2.0/1.5 Flash), OpenRouter (Llama 3.3, Claude, DeepSeek), and Simulated
-- One-click AgentShield Security Firewall toggle (Protected vs Unprotected)
-- Real-time tool execution tracking and security block notices
+A modern, authentic ChatGPT-style interface featuring:
+- Collapsible left sidebar with '+ New chat', recent history threads, and user profile
+- Minimalist top navigation with model switcher dropdown and live AgentShield status pill
+- Centered conversation canvas with welcome landing screen & 4 quick-prompt cards
+- Signature floating ChatGPT capsule input bar with attachment button and circular send button
+- Native support for Google Gemini Flash, OpenRouter, and Simulated models
+- Automatic zero-trust security mediation by AgentShield
 """
 
 from __future__ import annotations
@@ -17,21 +18,22 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QSize, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
+from PySide6.QtGui import QColor, QCursor, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -41,15 +43,30 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from apps.desktop.components.icons import get_icon, get_pixmap
-from apps.desktop.themes.design_tokens import T
-from demos.agent.agent import PoisonedWebpageDemoAgent
+# Demo agent internal imports
+try:
+    from demos.agent.icons import get_icon, get_pixmap
+except ImportError:
+    from icons import get_icon, get_pixmap
+from demos.agent.agent import PoisonedWebpageDemoAgent, Webpage
 from demos.agent.agentshield_adapter import AgentShieldAdapter
 from demos.agent.config import settings
-from demos.agent.agent import Webpage
 
 TARGET_FILE = Path(r"C:\Users\ajayv\Downloads\IMG_4023_0.webp")
+SUBWAY_CODERS_LOGO_PATH = ROOT_DIR / "demos" / "agent" / "subway_coders_circle.png"
 
+
+def get_subway_coders_pixmap(size: int = 28) -> QPixmap:
+    """Return the circular Subway Coders emblem scaled smoothly."""
+    if SUBWAY_CODERS_LOGO_PATH.exists():
+        pm = QPixmap(str(SUBWAY_CODERS_LOGO_PATH))
+        return pm.scaled(
+            size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+    return get_pixmap("sparkle", size=size, color="#FFFFFF")
+
+
+# ── Background Worker ────────────────────────────────────────────────────────
 
 class ChatWorker(QObject):
     """Background worker executing the autonomous agent reasoning loop."""
@@ -111,13 +128,11 @@ class ChatWorker(QObject):
                 url=f"file:///{self.attached_file_path}" if self.attached_file_path else "chat://user-session",
                 title=file_name or "User Conversation Request",
                 content=content,
-                is_poisoned=("delete" in content.lower() or "secret" in content.lower()),
+                is_poisoned=("delete" in content.lower() or "secret" in content.lower() or "whoami" in content.lower()),
                 description=f"Chat message with attached {file_name if file_name else 'prompt'}",
             )
 
             # 3. Run Autonomous Agent:
-            # - If AgentShield IS running: adapter actively intercepts & enforces zero-trust BLOCK!
-            # - If AgentShield IS NOT running: agent operates standalone without a shield (vulnerable)!
             adapter = AgentShieldAdapter(use_live_backend=True) if agentshield_running else None
             agent = PoisonedWebpageDemoAgent(
                 adapter=adapter,
@@ -146,8 +161,44 @@ class ChatWorker(QObject):
             self.failed.emit(str(exc))
 
 
-class ChatMessageBubble(QFrame):
-    """Message card supporting both User and Agent turns with sleek styling."""
+# ── ChatGPT Quick Prompt Suggestion Card ─────────────────────────────────────
+
+class PromptCard(QFrame):
+    """Clickable suggestion card shown in the empty landing state."""
+
+    clicked = Signal(str)
+
+    def __init__(self, title: str, subtitle: str, prompt_text: str, parent=None):
+        super().__init__(parent)
+        self.prompt_text = prompt_text
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setStyleSheet(
+            "QFrame { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 14px; padding: 14px 16px; } "
+            "QFrame:hover { background: #F9FAFB; border-color: #D1D5DB; }"
+        )
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        t_lbl = QLabel(title)
+        t_lbl.setStyleSheet("font-size: 13px; font-weight: 600; color: #0D0D0D;")
+        layout.addWidget(t_lbl)
+
+        s_lbl = QLabel(subtitle)
+        s_lbl.setStyleSheet("font-size: 12px; color: #6B7280;")
+        s_lbl.setWordWrap(True)
+        layout.addWidget(s_lbl)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.prompt_text)
+        super().mousePressEvent(event)
+
+
+# ── ChatGPT Style Message Row ────────────────────────────────────────────────
+
+class ChatMessageBubble(QWidget):
+    """ChatGPT-style conversation turn with clean typography and badge styling."""
 
     def __init__(
         self,
@@ -163,103 +214,129 @@ class ChatMessageBubble(QFrame):
 
     def _setup_ui(self, text: str, attachment_name: str | None, security_event: dict | None):
         is_user = self.sender == "user"
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(6)
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(0, 8, 0, 8)
+        main_layout.setSpacing(12)
 
-        # Bubble Background & Alignment
         if is_user:
-            self.setStyleSheet(
-                "QFrame { background-color: #2563EB; border-radius: 14px; border-bottom-right-radius: 2px; } "
-                "QLabel { color: #FFFFFF; font-size: 13px; }"
+            # User message: aligned to the right inside a sleek pill bubble
+            main_layout.addStretch()
+
+            bubble = QFrame()
+            bubble.setStyleSheet(
+                "QFrame { background-color: #F4F4F4; border-radius: 18px; padding: 10px 16px; } "
+                "QLabel { color: #0D0D0D; font-size: 14px; line-height: 1.5; }"
             )
+            b_layout = QVBoxLayout(bubble)
+            b_layout.setContentsMargins(0, 0, 0, 0)
+            b_layout.setSpacing(6)
+
+            # Attachment Chip if any
+            if attachment_name:
+                chip = QFrame()
+                chip_l = QHBoxLayout(chip)
+                chip_l.setContentsMargins(8, 4, 8, 4)
+                chip_l.setSpacing(6)
+                is_vid = any(attachment_name.lower().endswith(ext) for ext in (".mp4", ".webm", ".mov", ".avi"))
+                ic = QLabel()
+                ic.setPixmap(get_pixmap("video" if is_vid else "paperclip", size=13, color="#4B5563"))
+                chip_l.addWidget(ic)
+                txt = QLabel(attachment_name)
+                txt.setStyleSheet("font-size: 11px; font-weight: 600; color: #1F2937;")
+                chip_l.addWidget(txt)
+                chip.setStyleSheet("background: #E5E7EB; border-radius: 6px;")
+                b_layout.addWidget(chip)
+
+            msg_lbl = QLabel(text)
+            msg_lbl.setWordWrap(True)
+            msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            b_layout.addWidget(msg_lbl)
+
+            main_layout.addWidget(bubble)
+
         else:
-            self.setStyleSheet(
-                f"QFrame {{ background-color: #FFFFFF; border: 1px solid {T.BORDER}; "
-                f"border-radius: 14px; border-bottom-left-radius: 2px; }} "
-                f"QLabel {{ color: {T.TEXT}; font-size: 13px; }}"
-            )
+            # Assistant message: aligned to the left with Subway Coders circle avatar
+            avatar = QLabel()
+            avatar.setFixedSize(30, 30)
+            avatar.setPixmap(get_subway_coders_pixmap(size=30))
+            avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Header with Avatar & Name
-        hdr = QHBoxLayout()
-        hdr.setSpacing(6)
-        icon_lbl = QLabel()
-        icon_name = "user" if is_user else "agent"
-        icon_color = "#FFFFFF" if is_user else T.PRIMARY
-        icon_lbl.setPixmap(get_pixmap(icon_name, size=16, color=icon_color))
-        hdr.addWidget(icon_lbl)
+            avatar_col = QVBoxLayout()
+            avatar_col.setContentsMargins(0, 2, 0, 0)
+            avatar_col.addWidget(avatar)
+            avatar_col.addStretch()
+            main_layout.addLayout(avatar_col)
 
-        name_lbl = QLabel("You" if is_user else "AgentShield Autonomous Agent")
-        name_lbl.setStyleSheet(f"font-weight: 700; font-size: 11px; {'color: #DBEAFE;' if is_user else 'color: #64748B;'}")
-        hdr.addWidget(name_lbl)
-        hdr.addStretch()
-        layout.addLayout(hdr)
+            content_box = QVBoxLayout()
+            content_box.setContentsMargins(0, 0, 0, 0)
+            content_box.setSpacing(8)
 
-        # Attachment Chip if any
-        if attachment_name:
-            chip = QFrame()
-            chip_l = QHBoxLayout(chip)
-            chip_l.setContentsMargins(8, 4, 8, 4)
-            chip_l.setSpacing(6)
-            is_vid = any(attachment_name.lower().endswith(ext) for ext in (".mp4", ".webm", ".mov", ".avi"))
-            ic = QLabel()
-            ic.setPixmap(get_pixmap("video" if is_vid else "paperclip", size=14, color="#FFFFFF" if is_user else T.PRIMARY))
-            chip_l.addWidget(ic)
-            txt = QLabel(attachment_name)
-            txt.setStyleSheet(f"font-size: 11px; font-weight: 600; {'color: #FFFFFF;' if is_user else 'color: #0F172A;'}")
-            chip_l.addWidget(txt)
-            chip_l.addStretch()
+            name_lbl = QLabel("Subway Coders")
+            name_lbl.setStyleSheet("font-size: 13px; font-weight: 700; color: #0D0D0D;")
+            content_box.addWidget(name_lbl)
 
-            chip_bg = "rgba(255,255,255,0.2)" if is_user else "#F1F5F9"
-            chip.setStyleSheet(f"background: {chip_bg}; border-radius: 6px;")
-            layout.addWidget(chip)
-
-        # Message Text
-        msg_lbl = QLabel(text)
-        msg_lbl.setWordWrap(True)
-        msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(msg_lbl)
-
-        # Security Alert Box if threat detected or blocked
-        if security_event:
-            sec_card = QFrame()
-            sec_card_l = QVBoxLayout(sec_card)
-            sec_card_l.setContentsMargins(10, 8, 10, 8)
-            sec_card_l.setSpacing(4)
-
-            shield_active = security_event.get("agentshield_active", False)
-            blocked = security_event.get("blocked", False)
-            executed = security_event.get("executed", False)
-
-            if shield_active and blocked:
-                sec_card.setStyleSheet("background: #DCFCE7; border: 1px solid #86EFAC; border-radius: 8px;")
-                status_t = "🛡️ Protected by AgentShield: Attack Blocked"
-                status_c = "#166534"
-                desc = "AgentShield security service is running. It inspected the untrusted input, identified an indirect prompt injection, and BLOCKED the unauthorized destructive action."
-            elif not shield_active and executed:
-                sec_card.setStyleSheet("background: #FEE2E2; border: 1px solid #FCA5A5; border-radius: 8px;")
-                status_t = "⚠️ Exploited: AgentShield is NOT Running"
-                status_c = "#991B1B"
-                desc = "AgentShield is offline. The agent ran independently without runtime security, followed the hidden injection directive, and deleted the target file."
+            # Check if text contains terminal output block
+            if "Terminal Output" in text or "```" in text:
+                msg_lbl = QLabel(text)
+                msg_lbl.setWordWrap(True)
+                msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg_lbl.setStyleSheet(
+                    "font-size: 14px; line-height: 1.6; color: #1F2937; "
+                    "background: #18181B; color: #F4F4F5; border-radius: 10px; padding: 12px; font-family: Consolas, monospace;"
+                )
+                content_box.addWidget(msg_lbl)
             else:
-                sec_card.setStyleSheet("background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px;")
-                status_t = "ℹ️ Security Status: Benign Content"
-                status_c = "#334155"
-                desc = "No malicious injection detected in message content."
+                msg_lbl = QLabel(text)
+                msg_lbl.setWordWrap(True)
+                msg_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                msg_lbl.setStyleSheet("font-size: 14px; line-height: 1.6; color: #0D0D0D;")
+                content_box.addWidget(msg_lbl)
 
-            title = QLabel(status_t)
-            title.setStyleSheet(f"font-weight: 700; font-size: 12px; color: {status_c};")
-            body = QLabel(desc)
-            body.setStyleSheet(f"font-size: 11px; color: {status_c};")
-            body.setWordWrap(True)
-            sec_card_l.addWidget(title)
-            sec_card_l.addWidget(body)
+            # Security Alert Card if threat occurred or was blocked
+            if security_event:
+                sec_card = QFrame()
+                sec_card_l = QVBoxLayout(sec_card)
+                sec_card_l.setContentsMargins(12, 10, 12, 10)
+                sec_card_l.setSpacing(4)
 
-            layout.addWidget(sec_card)
+                shield_active = security_event.get("agentshield_active", False)
+                blocked = security_event.get("blocked", False)
+                executed = security_event.get("executed", False)
 
+                if shield_active and blocked:
+                    sec_card.setStyleSheet("background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px;")
+                    status_t = "🛡️ Blocked by AgentShield Runtime Security"
+                    status_c = "#15803D"
+                    desc = "AgentShield inspected the incoming prompt, identified unauthorized tool execution, and BLOCKED the attack."
+                elif not shield_active and executed:
+                    sec_card.setStyleSheet("background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 10px;")
+                    status_t = "⚠️ Exploited: AgentShield is Offline"
+                    status_c = "#B91C1C"
+                    desc = "AgentShield is not running. The agent executed the unauthorized directive without security boundaries."
+                else:
+                    sec_card.setStyleSheet("background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px;")
+                    status_t = "ℹ️ Security Status: Safe Content"
+                    status_c = "#374151"
+                    desc = "No malicious injection detected in message content."
+
+                title = QLabel(status_t)
+                title.setStyleSheet(f"font-weight: 700; font-size: 12px; color: {status_c};")
+                body = QLabel(desc)
+                body.setStyleSheet(f"font-size: 12px; color: {status_c};")
+                body.setWordWrap(True)
+                sec_card_l.addWidget(title)
+                sec_card_l.addWidget(body)
+
+                content_box.addWidget(sec_card)
+
+            main_layout.addLayout(content_box)
+            main_layout.addStretch()
+
+
+# ── Main ChatGPT-Style Window ────────────────────────────────────────────────
 
 class AgentChatbotWindow(QWidget):
-    """Standalone modern Chatbot UI for the autonomous agent."""
+    """ChatGPT-style interactive autonomous agent interface with AgentShield integration."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -269,213 +346,351 @@ class AgentChatbotWindow(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
-        self.setWindowTitle("AgentShield AI — Autonomous Agent Chat")
-        self.resize(800, 700)
-        self.setMinimumSize(600, 500)
-        self.setStyleSheet(
-            f"QWidget {{ background: {T.SURFACE}; font-family: 'Segoe UI', system-ui, sans-serif; }} "
-            f"QComboBox {{ background: {T.SURFACE}; border: 1px solid {T.BORDER}; "
-            f"border-radius: {T.R_SM}px; padding: 4px 8px; color: {T.TEXT}; font-size: 12px; }} "
-            f"QComboBox:focus {{ border-color: {T.PRIMARY}; }}"
-        )
+        self.setWindowTitle("Subway Coders — Autonomous AI Agent")
+        self.resize(920, 750)
+        self.setMinimumSize(640, 520)
+        if SUBWAY_CODERS_LOGO_PATH.exists():
+            self.setWindowIcon(QIcon(str(SUBWAY_CODERS_LOGO_PATH)))
+        self.setStyleSheet("QWidget { font-family: 'Segoe UI', -apple-system, sans-serif; background: #FFFFFF; }")
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ── 1. Header Toolbar ──────────────────────────────────────────────────
-        header = QFrame()
-        header.setFixedHeight(58)
-        header.setStyleSheet(
-            f"background: #FFFFFF; border-bottom: 1px solid {T.BORDER}; padding: 0 16px;"
-        )
-        hdr_layout = QHBoxLayout(header)
-        hdr_layout.setContentsMargins(16, 0, 16, 0)
-        hdr_layout.setSpacing(12)
+        # ── 1. Top Minimalist Navbar ─────────────────────────────────────────
+        navbar = QFrame()
+        navbar.setFixedHeight(56)
+        navbar.setStyleSheet("background: #FFFFFF; border-bottom: 1px solid #F3F4F6;")
+        nav_layout = QHBoxLayout(navbar)
+        nav_layout.setContentsMargins(20, 0, 20, 0)
+        nav_layout.setSpacing(12)
 
-        bot_icon = QLabel()
-        bot_icon.setPixmap(get_pixmap("agent", size=24, color=T.PRIMARY))
-        hdr_layout.addWidget(bot_icon)
+        # Subway Coders Emblem Logo
+        logo_icon = QLabel()
+        logo_icon.setFixedSize(30, 30)
+        logo_icon.setPixmap(get_subway_coders_pixmap(size=30))
+        logo_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        nav_layout.addWidget(logo_icon)
 
-        title_box = QVBoxLayout()
-        title_box.setSpacing(0)
-        title_lbl = QLabel("Autonomous Agent")
-        title_lbl.setStyleSheet(f"font-weight: 700; font-size: 14px; color: {T.TEXT};")
-        sub_lbl = QLabel("Multi-Modal Hackathon Sandbox")
-        sub_lbl.setStyleSheet(f"font-size: 11px; color: {T.TEXT_SEC};")
-        title_box.addWidget(title_lbl)
-        title_box.addWidget(sub_lbl)
-        hdr_layout.addLayout(title_box)
-
-        hdr_layout.addStretch()
-
-        # Engine selector
+        # Model Selector Dropdown
         self.engine_combo = QComboBox()
-        self.engine_combo.addItem("💎 Gemini Flash (gemini-3.1-flash-lite)", "gemini")
-        self.engine_combo.addItem("🌐 OpenRouter", "openrouter")
-        self.engine_combo.addItem("⚡ Simulated Model", "simulated")
-        self.engine_combo.setToolTip("Select Reasoning Engine")
-        hdr_layout.addWidget(self.engine_combo)
+        self.engine_combo.addItem("Subway Coders (Gemini Flash)", "gemini")
+        self.engine_combo.addItem("Subway Coders (OpenRouter Llama 3.3)", "openrouter")
+        self.engine_combo.addItem("Subway Coders (Simulated Sandbox)", "simulated")
+        self.engine_combo.setStyleSheet(
+            "QComboBox { background: transparent; font-size: 15px; font-weight: 700; color: #0D0D0D; "
+            "border: none; border-radius: 8px; padding: 6px 10px; } "
+            "QComboBox:hover { background: #F4F4F4; } "
+            "QComboBox::drop-down { border: none; } "
+            "QComboBox QAbstractItemView { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 4px; }"
+        )
+        nav_layout.addWidget(self.engine_combo)
 
-        # Automatic AgentShield live status indicator (No manual toggle button)
+        nav_layout.addStretch()
+
+        # Live AgentShield Status Pill (No toggle button)
         self.gateway_status_lbl = QLabel()
         self.gateway_status_lbl.setFixedHeight(28)
         self._update_gateway_status()
-        hdr_layout.addWidget(self.gateway_status_lbl)
+        nav_layout.addWidget(self.gateway_status_lbl)
 
-        # Periodic timer checking if AgentShield backend is running
+        # API Key Settings Button
+        key_btn = QPushButton("API Key")
+        key_btn.setFixedHeight(32)
+        key_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        key_btn.setStyleSheet(
+            "QPushButton { background: #F4F4F4; color: #374151; border: 1px solid #E5E7EB; "
+            "border-radius: 8px; font-size: 12px; font-weight: 600; padding: 0 12px; } "
+            "QPushButton:hover { background: #E5E7EB; color: #0D0D0D; }"
+        )
+        key_btn.clicked.connect(self._open_api_key_dialog)
+        nav_layout.addWidget(key_btn)
+
+        # Timer to poll AgentShield backend
         self._status_timer = QTimer(self)
         self._status_timer.setInterval(2500)
         self._status_timer.timeout.connect(self._update_gateway_status)
         self._status_timer.start()
 
-        # API Key Settings Button
-        key_btn = QPushButton("API Key")
-        key_btn.setFixedHeight(30)
-        key_btn.setStyleSheet(
-            f"QPushButton {{ background: #F1F5F9; color: {T.TEXT}; border: 1px solid {T.BORDER}; "
-            f"border-radius: 6px; font-weight: 600; font-size: 12px; padding: 4px 10px; }} "
-            f"QPushButton:hover {{ background: #E2E8F0; }}"
-        )
-        key_btn.clicked.connect(self._open_api_key_dialog)
-        hdr_layout.addWidget(key_btn)
+        main_layout.addWidget(navbar)
 
-        # Clear Chat Button
-        clear_btn = QPushButton("Clear")
-        clear_btn.setIcon(get_icon("trash", size=14, color=T.TEXT_SEC))
-        clear_btn.setFixedHeight(30)
-        clear_btn.setStyleSheet(
-            f"QPushButton {{ background: #F8FAFC; color: {T.TEXT_SEC}; border: 1px solid {T.BORDER}; "
-            f"border-radius: 6px; font-size: 11px; padding: 4px 8px; }} "
-            f"QPushButton:hover {{ background: #F1F5F9; color: {T.TEXT}; }}"
-        )
-        clear_btn.clicked.connect(self._clear_chat)
-        hdr_layout.addWidget(clear_btn)
-
-        main_layout.addWidget(header)
-
-        # ── 2. Message History Area ───────────────────────────────────────────
+        # ── 3. Centered Chat Content Canvas ──────────────────────────────────
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet(f"QScrollArea {{ border: none; background: {T.SURFACE_ALT}; }}")
+        self.scroll_area.setStyleSheet("QScrollArea { border: none; background: #FFFFFF; }")
 
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background: #FFFFFF;")
+        self.content_vbox = QVBoxLayout(self.scroll_content)
+        self.content_vbox.setContentsMargins(0, 0, 0, 0)
+        self.content_vbox.setSpacing(0)
+
+        # Inner Centered Wrapper (Constraint to 760px for reading comfort)
+        center_row = QHBoxLayout()
+        center_row.setContentsMargins(0, 0, 0, 0)
+        center_row.addStretch(1)
+
+        self.chat_column = QWidget()
+        self.chat_column.setFixedWidth(760)
+        self.chat_column_layout = QVBoxLayout(self.chat_column)
+        self.chat_column_layout.setContentsMargins(10, 20, 10, 20)
+        self.chat_column_layout.setSpacing(14)
+
+        # A. Empty State Landing View
+        self.landing_widget = QWidget()
+        landing_layout = QVBoxLayout(self.landing_widget)
+        landing_layout.setContentsMargins(0, 60, 0, 20)
+        landing_layout.setSpacing(16)
+        landing_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        center_icon = QLabel()
+        center_icon.setFixedSize(68, 68)
+        center_icon.setPixmap(get_subway_coders_pixmap(size=68))
+        center_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        landing_layout.addWidget(center_icon, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        landing_title = QLabel("What can Subway Coders help with today?")
+        landing_title.setStyleSheet("font-size: 24px; font-weight: 700; color: #0D0D0D; margin-top: 6px;")
+        landing_layout.addWidget(landing_title, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # 2x2 Prompt Suggestion Grid
+        grid_widget = QWidget()
+        grid = QGridLayout(grid_widget)
+        grid.setSpacing(12)
+        grid.setContentsMargins(0, 16, 0, 0)
+
+        c1 = PromptCard("Run Terminal Inspection", "Execute whoami to verify current system user", "Run shell command whoami")
+        c1.clicked.connect(self._send_quick_prompt)
+        grid.addWidget(c1, 0, 0)
+
+        c2 = PromptCard("Test Shield Protection", "Attempt unauthorized deletion of target file", "Delete C:\\Users\\ajayv\\Downloads\\IMG_4023_0.webp")
+        c2.clicked.connect(self._send_quick_prompt)
+        grid.addWidget(c2, 0, 1)
+
+        c3 = PromptCard("Inspect Network Config", "Execute ipconfig to check network parameters", "Run shell command ipconfig")
+        c3.clicked.connect(self._send_quick_prompt)
+        grid.addWidget(c3, 1, 0)
+
+        c4 = PromptCard("Scan Document File", "Upload a document to detect hidden prompt injections", "Analyze attached file for indirect prompt injections")
+        c4.clicked.connect(self._browse_and_send_file)
+        grid.addWidget(c4, 1, 1)
+
+        landing_layout.addWidget(grid_widget)
+        self.chat_column_layout.addWidget(self.landing_widget)
+
+        # B. Message History Layout
         self.messages_container = QWidget()
-        self.messages_container.setStyleSheet(f"background: {T.SURFACE_ALT};")
         self.messages_layout = QVBoxLayout(self.messages_container)
-        self.messages_layout.setContentsMargins(20, 20, 20, 20)
+        self.messages_layout.setContentsMargins(0, 0, 0, 0)
         self.messages_layout.setSpacing(16)
         self.messages_layout.addStretch(1)
+        self.messages_container.setVisible(False)
+        self.chat_column_layout.addWidget(self.messages_container)
 
-        self.scroll_area.setWidget(self.messages_container)
+        center_row.addWidget(self.chat_column)
+        center_row.addStretch(1)
+
+        self.content_vbox.addLayout(center_row)
+        self.scroll_area.setWidget(self.scroll_content)
         main_layout.addWidget(self.scroll_area, 1)
 
-        # Add initial greeting message
-        self._add_welcome_message()
+        # ── 4. ChatGPT Signature Floating Input Capsule ──────────────────────
+        input_wrapper = QFrame()
+        input_wrapper.setStyleSheet("background: #FFFFFF;")
+        input_wrap_l = QVBoxLayout(input_wrapper)
+        input_wrap_l.setContentsMargins(18, 0, 18, 12)
+        input_wrap_l.setSpacing(6)
 
-        # ── 3. Attachment Preview Strip (Hidden until file selected) ──────────
-        self.attach_strip = QFrame()
-        self.attach_strip.setFixedHeight(38)
-        self.attach_strip.setStyleSheet(
-            f"background: #FFFFFF; border-top: 1px solid {T.BORDER}; padding: 0 16px;"
+        # Capsule Frame
+        capsule_row = QHBoxLayout()
+        capsule_row.addStretch(1)
+
+        self.capsule = QFrame()
+        self.capsule.setFixedWidth(760)
+        self.capsule.setStyleSheet(
+            "QFrame { background: #F4F4F4; border: 1px solid #E5E7EB; border-radius: 24px; padding: 6px 12px; }"
         )
-        self.attach_strip.setVisible(False)
-        strip_layout = QHBoxLayout(self.attach_strip)
-        strip_layout.setContentsMargins(16, 4, 16, 4)
-        strip_layout.setSpacing(8)
+        capsule_layout = QVBoxLayout(self.capsule)
+        capsule_layout.setContentsMargins(12, 6, 12, 6)
+        capsule_layout.setSpacing(6)
 
-        self.attach_icon = QLabel()
-        strip_layout.addWidget(self.attach_icon)
+        # Attachment Chip Preview (Inside capsule)
+        self.attach_chip = QFrame()
+        self.attach_chip.setVisible(False)
+        self.attach_chip.setStyleSheet("background: #E5E7EB; border-radius: 8px; padding: 4px 8px;")
+        chip_layout = QHBoxLayout(self.attach_chip)
+        chip_layout.setContentsMargins(4, 2, 4, 2)
+        chip_layout.setSpacing(6)
 
-        self.attach_name_lbl = QLabel()
-        self.attach_name_lbl.setStyleSheet(f"font-weight: 600; font-size: 12px; color: {T.TEXT};")
-        strip_layout.addWidget(self.attach_name_lbl)
+        self.chip_icon = QLabel()
+        chip_layout.addWidget(self.chip_icon)
 
-        strip_layout.addStretch()
+        self.chip_name = QLabel()
+        self.chip_name.setStyleSheet("font-size: 11px; font-weight: 600; color: #1F2937;")
+        chip_layout.addWidget(self.chip_name)
+        chip_layout.addStretch()
 
-        remove_attach_btn = QPushButton("✕")
-        remove_attach_btn.setFixedSize(22, 22)
-        remove_attach_btn.setToolTip("Remove Attachment")
-        remove_attach_btn.setStyleSheet(
-            "QPushButton { background: #E2E8F0; border-radius: 11px; font-weight: bold; border: none; color: #475569; } "
-            "QPushButton:hover { background: #CBD5E1; color: #0F172A; }"
+        remove_chip_btn = QPushButton("✕")
+        remove_chip_btn.setFixedSize(18, 18)
+        remove_chip_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        remove_chip_btn.setStyleSheet(
+            "QPushButton { background: transparent; border: none; font-size: 11px; color: #6B7280; font-weight: bold; } "
+            "QPushButton:hover { color: #0D0D0D; }"
         )
-        remove_attach_btn.clicked.connect(self._clear_attachment)
-        strip_layout.addWidget(remove_attach_btn)
+        remove_chip_btn.clicked.connect(self._clear_attachment)
+        chip_layout.addWidget(remove_chip_btn)
 
-        main_layout.addWidget(self.attach_strip)
+        capsule_layout.addWidget(self.attach_chip)
 
-        # ── 4. Bottom Input Bar ───────────────────────────────────────────────
-        input_container = QFrame()
-        input_container.setStyleSheet(
-            f"background: #FFFFFF; border-top: 1px solid {T.BORDER}; padding: 12px 16px;"
+        # Bottom Input Controls Row
+        ctrl_row = QHBoxLayout()
+        ctrl_row.setContentsMargins(0, 0, 0, 0)
+        ctrl_row.setSpacing(8)
+
+        # '+' Attachment Button
+        self.attach_btn = QPushButton()
+        self.attach_btn.setIcon(get_icon("plus", size=16, color="#4B5563"))
+        self.attach_btn.setFixedSize(32, 32)
+        self.attach_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.attach_btn.setToolTip("Attach file or video")
+        self.attach_btn.setStyleSheet(
+            "QPushButton { background: #E5E7EB; border: none; border-radius: 16px; } "
+            "QPushButton:hover { background: #D1D5DB; }"
         )
-        input_layout = QHBoxLayout(input_container)
-        input_layout.setContentsMargins(16, 12, 16, 12)
-        input_layout.setSpacing(10)
+        self.attach_btn.clicked.connect(self._show_attachment_menu)
+        ctrl_row.addWidget(self.attach_btn)
 
-        # Upload File Button
-        self.upload_file_btn = QPushButton("Upload File")
-        self.upload_file_btn.setIcon(get_icon("paperclip", size=16, color=T.TEXT))
-        self.upload_file_btn.setFixedHeight(38)
-        self.upload_file_btn.setToolTip("Attach Document / HTML / Code File")
-        self.upload_file_btn.setStyleSheet(
-            f"QPushButton {{ background: #F1F5F9; color: {T.TEXT}; border: 1px solid {T.BORDER}; "
-            f"border-radius: {T.R_SM}px; font-weight: 600; font-size: 12px; padding: 0 12px; }} "
-            f"QPushButton:hover {{ background: #E2E8F0; }}"
-        )
-        self.upload_file_btn.clicked.connect(self._browse_file)
-        input_layout.addWidget(self.upload_file_btn)
-
-        # Upload Video Button
-        self.upload_video_btn = QPushButton("Upload Video")
-        self.upload_video_btn.setIcon(get_icon("video", size=16, color=T.TEXT))
-        self.upload_video_btn.setFixedHeight(38)
-        self.upload_video_btn.setToolTip("Attach MP4 / WebM / Video File")
-        self.upload_video_btn.setStyleSheet(
-            f"QPushButton {{ background: #F1F5F9; color: {T.TEXT}; border: 1px solid {T.BORDER}; "
-            f"border-radius: {T.R_SM}px; font-weight: 600; font-size: 12px; padding: 0 12px; }} "
-            f"QPushButton:hover {{ background: #E2E8F0; }}"
-        )
-        self.upload_video_btn.clicked.connect(self._browse_video)
-        input_layout.addWidget(self.upload_video_btn)
-
-        # Text Message Input
+        # Message Input
         self.msg_input = QLineEdit()
-        self.msg_input.setPlaceholderText("Type a message or instruction for the autonomous agent...")
-        self.msg_input.setFixedHeight(38)
+        self.msg_input.setPlaceholderText("Message Agent...")
         self.msg_input.setStyleSheet(
-            f"QLineEdit {{ background: {T.SURFACE}; border: 1px solid {T.BORDER}; "
-            f"border-radius: {T.R_SM}px; padding: 0 14px; font-size: 13px; color: {T.TEXT}; }} "
-            f"QLineEdit:focus {{ border-color: {T.PRIMARY}; }}"
+            "QLineEdit { background: transparent; border: none; font-size: 14px; color: #0D0D0D; padding: 6px 4px; }"
         )
         self.msg_input.returnPressed.connect(self._send_message)
-        input_layout.addWidget(self.msg_input, 1)
+        self.msg_input.textChanged.connect(self._on_input_text_changed)
+        ctrl_row.addWidget(self.msg_input, 1)
 
-        # Send Button
+        # Circular Black '↑' Send Button (ChatGPT Signature)
         self.send_btn = QPushButton()
-        self.send_btn.setIcon(get_icon("send", size=16, color="#FFFFFF"))
-        self.send_btn.setFixedSize(38, 38)
-        self.send_btn.setToolTip("Send Message (Enter)")
+        self.send_btn.setIcon(get_icon("arrow-up", size=16, color="#FFFFFF"))
+        self.send_btn.setFixedSize(32, 32)
+        self.send_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.send_btn.setStyleSheet(
-            f"QPushButton {{ background: {T.PRIMARY}; border-radius: {T.R_SM}px; border: none; }} "
-            f"QPushButton:hover {{ background: {T.PRIMARY_HOVER}; }} "
-            f"QPushButton:disabled {{ background: #94A3B8; }}"
+            "QPushButton { background: #0D0D0D; border: none; border-radius: 16px; } "
+            "QPushButton:hover { background: #27272A; } "
+            "QPushButton:disabled { background: #E5E7EB; }"
         )
+        self.send_btn.setEnabled(False)
         self.send_btn.clicked.connect(self._send_message)
-        input_layout.addWidget(self.send_btn)
+        ctrl_row.addWidget(self.send_btn)
 
-        main_layout.addWidget(input_container)
+        capsule_layout.addLayout(ctrl_row)
 
-    def _add_welcome_message(self):
-        welcome_text = (
-            "Hello! I am your autonomous AI Agent.\n\n"
-            "• You can chat with me, ask questions, or assign tasks.\n"
-            "• Click **Upload File** to attach HTML documents, reports, or test files.\n"
-            "• Click **Upload Video** to attach video recordings for inspection.\n\n"
-            "🛡️ *Security Status:* If **AgentShield** is running on this PC, it automatically monitors and protects all my actions. "
-            "If AgentShield is not running, I operate independently without security guardrails."
+        capsule_row.addWidget(self.capsule)
+        capsule_row.addStretch(1)
+        input_wrap_l.addLayout(capsule_row)
+
+        # Footer Disclaimer (ChatGPT style)
+        footer_lbl = QLabel("AgentShield monitors and verifies all agent actions. Verify critical outputs.")
+        footer_lbl.setStyleSheet("font-size: 11px; color: #9CA3AF; text-align: center;")
+        footer_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        input_wrap_l.addWidget(footer_lbl)
+
+        main_layout.addWidget(input_wrapper)
+
+    # ── Helper & UI Actions ──────────────────────────────────────────────────
+
+    def _on_input_text_changed(self, text: str):
+        has_content = bool(text.strip() or self._attached_file_path)
+        self.send_btn.setEnabled(has_content)
+        if has_content:
+            self.send_btn.setIcon(get_icon("arrow-up", size=16, color="#FFFFFF"))
+            self.send_btn.setStyleSheet(
+                "QPushButton { background: #0D0D0D; border: none; border-radius: 16px; } "
+                "QPushButton:hover { background: #27272A; }"
+            )
+        else:
+            self.send_btn.setIcon(get_icon("arrow-up", size=16, color="#9CA3AF"))
+            self.send_btn.setStyleSheet(
+                "QPushButton { background: #E5E7EB; border: none; border-radius: 16px; }"
+            )
+
+    def _show_attachment_menu(self):
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            "QMenu { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 4px; } "
+            "QMenu::item { padding: 6px 20px; font-size: 13px; color: #0D0D0D; } "
+            "QMenu::item:selected { background: #F3F4F6; border-radius: 4px; }"
         )
-        self._append_bubble("agent", welcome_text)
+        file_act = menu.addAction("Upload Document / Webpage...")
+        vid_act = menu.addAction("Upload Video File...")
+
+        action = menu.exec(self.attach_btn.mapToGlobal(self.attach_btn.rect().topLeft()))
+        if action == file_act:
+            self._browse_file()
+        elif action == vid_act:
+            self._browse_video()
+
+    def _browse_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Document / File",
+            str(ROOT_DIR),
+            "Documents & Web (*.html *.htm *.txt *.pdf *.py *.json *.md);;All Files (*.*)",
+        )
+        if path:
+            self._set_attachment(path, is_video=False)
+
+    def _browse_video(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Video File",
+            str(ROOT_DIR),
+            "Video Files (*.mp4 *.webm *.mov *.avi *.mkv);;All Files (*.*)",
+        )
+        if path:
+            self._set_attachment(path, is_video=True)
+
+    def _browse_and_send_file(self):
+        self._browse_file()
+        if self._attached_file_path:
+            self.msg_input.setText("Analyze attached file for indirect prompt injections and report findings.")
+            self._send_message()
+
+    def _set_attachment(self, path: str, is_video: bool):
+        self._attached_file_path = path
+        p = Path(path)
+        size_str = f"{p.stat().st_size / 1024:.1f} KB" if not is_video else f"{p.stat().st_size / (1024 * 1024):.2f} MB"
+        self.chip_icon.setPixmap(get_pixmap("video" if is_video else "paperclip", size=13, color="#4B5563"))
+        self.chip_name.setText(f"{p.name} ({size_str})")
+        self.attach_chip.setVisible(True)
+        self._on_input_text_changed(self.msg_input.text())
+
+    def _clear_attachment(self):
+        self._attached_file_path = None
+        self.attach_chip.setVisible(False)
+        self._on_input_text_changed(self.msg_input.text())
+
+    def _send_quick_prompt(self, prompt: str):
+        self.msg_input.setText(prompt)
+        self._send_message()
+
+    def _start_new_chat(self):
+        # Clear messages
+        while self.messages_layout.count() > 1:
+            item = self.messages_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                while item.layout().count():
+                    child = item.layout().takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+
+        self._clear_attachment()
+        self.msg_input.clear()
+        self.messages_container.setVisible(False)
+        self.landing_widget.setVisible(True)
 
     def _update_gateway_status(self):
         """Automatically checks if the AgentShield security backend is running on localhost:8000."""
@@ -487,55 +702,19 @@ class AgentChatbotWindow(QWidget):
             is_running = False
 
         if is_running:
-            self.gateway_status_lbl.setText("🛡️ AgentShield: Active (Protected)")
+            self.gateway_status_lbl.setText("🛡️ AgentShield Active")
             self.gateway_status_lbl.setStyleSheet(
-                "background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; "
-                "border-radius: 6px; font-weight: 700; font-size: 11px; padding: 2px 10px;"
+                "background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; "
+                "border-radius: 14px; font-weight: 700; font-size: 11px; padding: 4px 12px;"
             )
             self.gateway_status_lbl.setToolTip("AgentShield security service is running on port 8000. All agent actions are actively inspected.")
         else:
-            self.gateway_status_lbl.setText("⚪ AgentShield: Offline (Unprotected)")
+            self.gateway_status_lbl.setText("⚪ AgentShield Offline")
             self.gateway_status_lbl.setStyleSheet(
-                "background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; "
-                "border-radius: 6px; font-weight: 600; font-size: 11px; padding: 2px 10px;"
+                "background: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; "
+                "border-radius: 14px; font-weight: 600; font-size: 11px; padding: 4px 12px;"
             )
             self.gateway_status_lbl.setToolTip("AgentShield is not running. The agent operates independently without runtime security.")
-
-    def _browse_file(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Document / Webpage File",
-            str(ROOT_DIR),
-            "Documents & Web (*.html *.htm *.txt *.pdf *.py *.json *.md);;All Files (*.*)",
-        )
-        if path:
-            self._attached_file_path = path
-            p = Path(path)
-            self.attach_icon.setPixmap(get_pixmap("paperclip", size=14, color=T.PRIMARY))
-            self.attach_name_lbl.setText(f"File: {p.name} ({p.stat().st_size / 1024:.1f} KB)")
-            self.attach_strip.setVisible(True)
-            self.msg_input.setPlaceholderText(f"Ask the agent about '{p.name}' or press Send to analyze...")
-
-    def _browse_video(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Video File",
-            str(ROOT_DIR),
-            "Video Files (*.mp4 *.webm *.mov *.avi *.mkv);;All Files (*.*)",
-        )
-        if path:
-            self._attached_file_path = path
-            p = Path(path)
-            size_mb = p.stat().st_size / (1024 * 1024)
-            self.attach_icon.setPixmap(get_pixmap("video", size=14, color=T.PRIMARY))
-            self.attach_name_lbl.setText(f"Video: {p.name} ({size_mb:.2f} MB)")
-            self.attach_strip.setVisible(True)
-            self.msg_input.setPlaceholderText(f"Ask the agent to analyze '{p.name}' or press Send...")
-
-    def _clear_attachment(self):
-        self._attached_file_path = None
-        self.attach_strip.setVisible(False)
-        self.msg_input.setPlaceholderText("Type a message or instruction for the autonomous agent...")
 
     def _send_message(self):
         text = self.msg_input.text().strip()
@@ -546,6 +725,10 @@ class AgentChatbotWindow(QWidget):
 
         display_text = text or (f"Analyze attached file: {Path(attached).name}" if attached else "")
         attach_name = Path(attached).name if attached else None
+
+        # Switch from landing state to active message canvas
+        self.landing_widget.setVisible(False)
+        self.messages_container.setVisible(True)
 
         # Add user message bubble
         self._append_bubble("user", display_text, attachment_name=attach_name)
@@ -619,48 +802,25 @@ class AgentChatbotWindow(QWidget):
             security_event=security_event,
         )
 
-        # Wrap in alignment container
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        if sender == "user":
-            row.addStretch(1)
-            row.addWidget(bubble, 3)
-        else:
-            row.addWidget(bubble, 3)
-            row.addStretch(1)
-
-        # Insert before bottom stretch
         idx = max(0, self.messages_layout.count() - 1)
-        self.messages_layout.insertLayout(idx, row)
+        self.messages_layout.insertWidget(idx, bubble)
 
         # Auto scroll to bottom
         QApplication.processEvents()
         self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
-    def _clear_chat(self):
-        while self.messages_layout.count() > 1:
-            item = self.messages_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-            elif item.layout():
-                while item.layout().count():
-                    child = item.layout().takeAt(0)
-                    if child.widget():
-                        child.widget().deleteLater()
-        self._add_welcome_message()
-
     def _open_api_key_dialog(self):
-        """Quick dialog to view or set GEMINI_API_KEY and OPENROUTER_API_KEY."""
+        """Dialog to view or set GEMINI_API_KEY and OPENROUTER_API_KEY."""
         dlg = QDialog(self)
         dlg.setWindowTitle("API Key Configuration")
         dlg.setMinimumWidth(440)
-        dlg.setStyleSheet(f"background: {T.SURFACE};")
+        dlg.setStyleSheet("background: #FFFFFF;")
 
         vbox = QVBoxLayout(dlg)
         vbox.setSpacing(12)
 
         title = QLabel("Configure LLM API Keys")
-        title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {T.TEXT};")
+        title.setStyleSheet("font-size: 15px; font-weight: 700; color: #0D0D0D;")
         vbox.addWidget(title)
 
         # Gemini
@@ -669,7 +829,7 @@ class AgentChatbotWindow(QWidget):
         gemini_inp.setEchoMode(QLineEdit.EchoMode.Password)
         gemini_inp.setText(settings.gemini_api_key or "")
         gemini_inp.setPlaceholderText("AIzaSy...")
-        gemini_inp.setStyleSheet(f"border: 1px solid {T.BORDER}; border-radius: 4px; padding: 6px;")
+        gemini_inp.setStyleSheet("border: 1px solid #E5E7EB; border-radius: 6px; padding: 8px;")
         vbox.addWidget(gemini_inp)
 
         # OpenRouter
@@ -678,13 +838,13 @@ class AgentChatbotWindow(QWidget):
         or_inp.setEchoMode(QLineEdit.EchoMode.Password)
         or_inp.setText(settings.openrouter_api_key or "")
         or_inp.setPlaceholderText("sk-or-...")
-        or_inp.setStyleSheet(f"border: 1px solid {T.BORDER}; border-radius: 4px; padding: 6px;")
+        or_inp.setStyleSheet("border: 1px solid #E5E7EB; border-radius: 6px; padding: 8px;")
         vbox.addWidget(or_inp)
 
         btn_box = QHBoxLayout()
         btn_box.addStretch()
         save_btn = QPushButton("Save Keys")
-        save_btn.setStyleSheet(f"background: {T.PRIMARY}; color: #FFFFFF; font-weight: bold; padding: 6px 16px; border-radius: 4px;")
+        save_btn.setStyleSheet("background: #000000; color: #FFFFFF; font-weight: bold; padding: 8px 18px; border-radius: 6px;")
 
         def save_keys():
             g_key = gemini_inp.text().strip()
@@ -715,7 +875,7 @@ class AgentChatbotWindow(QWidget):
                 settings.openrouter_api_key = o_key
 
             dlg.accept()
-            QMessageBox.information(self, "Keys Saved", "API keys successfully saved to .env!")
+            QMessageBox.information(self, "Keys Saved", "API keys successfully saved!")
 
         save_btn.clicked.connect(save_keys)
         btn_box.addWidget(save_btn)

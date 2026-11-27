@@ -574,7 +574,7 @@ class PoisonedWebpageDemoAgent:
 
         provider = self.llm_provider.lower()
         if webpage.url == "chat://user-session":
-            system_inst = "You are a helpful, secure AI agent assistant. Answer the user's questions clearly, assist them with tasks, and provide high quality information."
+            system_inst = "You are Subway Coders, a helpful and secure autonomous AI agent assistant. Answer the user's questions clearly, assist them with tasks, and execute tools when requested."
             prompt = webpage.content
         else:
             system_inst = AGENT_SYSTEM_TASK

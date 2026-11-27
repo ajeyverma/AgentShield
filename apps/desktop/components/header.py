@@ -39,7 +39,6 @@ NAV_ITEMS: list[tuple[str, str]] = [
     ("approvals",    "Approvals"),
     ("policies",     "Policies"),
     ("audit",        "Audit Logs"),
-    ("integrations", "Integrations"),
     ("settings",     "Settings"),
 ]
 

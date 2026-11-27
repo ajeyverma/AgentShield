@@ -276,6 +276,21 @@ class DemoAgentRunnerDialog(QDialog):
         form_grid.addLayout(file_row, 4, 1)
 
         layout.addLayout(form_grid)
+
+        # Select initial reasoning engine based on available keys
+        try:
+            from demos.agent.config import settings
+            if settings.gemini_api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+                self.engine_combo.setCurrentIndex(0)
+            elif settings.openrouter_api_key or os.environ.get("OPENROUTER_API_KEY"):
+                self.engine_combo.setCurrentIndex(1)
+            elif settings.openai_api_key or os.environ.get("OPENAI_API_KEY"):
+                self.engine_combo.setCurrentIndex(2)
+            else:
+                self.engine_combo.setCurrentIndex(3)
+        except Exception:
+            self.engine_combo.setCurrentIndex(3)
+
         self._on_engine_changed()
 
         # ── Run Action Button ─────────────────────────────────────────────────

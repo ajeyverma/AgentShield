@@ -20,7 +20,6 @@ NAV_ITEMS = [
     ("approvals",         "", "Approval Center",   None),
     ("policies",          "", "Policy Management", "MANAGEMENT"),
     ("audit",             "", "Audit Logs",        None),
-    ("integrations",      "", "Integrations",      None),
     ("settings",          "", "Settings",          None),
 ]
 

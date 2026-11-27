@@ -126,26 +126,6 @@ def _detail_dialog(agent: AgentRecord, parent) -> None:
     btn_row.addWidget(remove_btn)
     btn_row.addStretch()
 
-    chat_btn = QPushButton("Chat")
-    chat_btn.setIcon(get_icon("agent", size=14, color="#FFFFFF"))
-    chat_btn.setStyleSheet(
-        f"QPushButton {{ background-color: #059669; color: #FFFFFF; border: none; "
-        f"border-radius: {T.R_SM}px; padding: 6px 16px; font-weight: 600; min-height: 28px; }} "
-        f"QPushButton:hover {{ background-color: #047857; }}"
-    )
-    def _open_chat_from_details():
-        from demos.agent.chatbot_ui import AgentChatbotWindow
-        win = AgentChatbotWindow()
-        win.show()
-        # keep reference so it doesn't get garbage collected
-        if hasattr(parent, "_chat_windows"):
-            parent._chat_windows.append(win)
-        else:
-            parent._chat_windows = [win]
-
-    chat_btn.clicked.connect(_open_chat_from_details)
-    btn_row.addWidget(chat_btn)
-
     run_agent_btn = QPushButton("Run Agent")
     run_agent_btn.setIcon(get_icon("play", size=14, color="#FFFFFF"))
     run_agent_btn.setStyleSheet(
@@ -153,7 +133,15 @@ def _detail_dialog(agent: AgentRecord, parent) -> None:
         f"border-radius: {T.R_SM}px; padding: 6px 16px; font-weight: 600; min-height: 28px; }} "
         f"QPushButton:hover {{ background-color: #1D4ED8; }}"
     )
-    run_agent_btn.clicked.connect(lambda: DemoAgentRunnerDialog(agent_name=agent.name, parent=dlg).exec())
+    def _launch_from_details():
+        dlg.accept()
+        if parent and hasattr(parent, "_open_chatbot"):
+            parent._open_chatbot(agent.name)
+        else:
+            from demos.agent.chatbot_ui import AgentChatbotWindow
+            w = AgentChatbotWindow()
+            w.show()
+    run_agent_btn.clicked.connect(_launch_from_details)
     btn_row.addWidget(run_agent_btn)
 
     close_btn = QPushButton("Close")
@@ -317,28 +305,6 @@ class AgentManagerView(QWidget):
         refresh_btn.clicked.connect(self.refresh_data)
         tb.addWidget(refresh_btn)
 
-        # Quick test demo agent button
-        test_demo_btn = QPushButton("Test Demo Agent")
-        test_demo_btn.setIcon(get_icon("play", size=13, color=T.TEXT))
-        test_demo_btn.setStyleSheet(
-            f"QPushButton {{ background-color:{T.SURFACE}; color:{T.TEXT}; border:1px solid {T.BORDER}; "
-            f"border-radius:{T.R_SM}px; padding:5px 12px; font-weight:600; }} "
-            f"QPushButton:hover {{ background-color:{T.SURFACE_ALT}; }}"
-        )
-        test_demo_btn.clicked.connect(lambda: self._open_demo_runner())
-        tb.addWidget(test_demo_btn)
-
-        # Launch Chatbot button
-        chat_agent_btn = QPushButton("Chat with Agent")
-        chat_agent_btn.setIcon(get_icon("agent", size=13, color=T.PRIMARY))
-        chat_agent_btn.setStyleSheet(
-            f"QPushButton {{ background-color:{T.SURFACE}; color:{T.PRIMARY}; border:1px solid #BFDBFE; "
-            f"border-radius:{T.R_SM}px; padding:5px 12px; font-weight:600; }} "
-            f"QPushButton:hover {{ background-color:#EFF6FF; }}"
-        )
-        chat_agent_btn.clicked.connect(self._open_chatbot)
-        tb.addWidget(chat_agent_btn)
-
         tb.addStretch()
 
         self._count_lbl = QLabel("0 agents")
@@ -372,7 +338,7 @@ class AgentManagerView(QWidget):
             self._all_agents = [
                 AgentRecord(
                     agent_id=str(a.get("id", "")),
-                    name=a.get("agent_name") or a.get("name", "Unnamed Agent"),
+                    name="Subway Coders" if (a.get("agent_name") in ("PoisonedWebpageDemoAgent", "Subway Coders") or a.get("name") in ("PoisonedWebpageDemoAgent", "Subway Coders")) else (a.get("agent_name") or a.get("name", "Unnamed Agent")),
                     framework=a.get("framework", "Agent SDK"),
                     status=str(a.get("status", "Active")).capitalize(),
                     last_seen=to_ist_str(a.get("last_seen_at") or a.get("last_active_at") or a.get("created_at"), with_tz=True),
@@ -401,9 +367,16 @@ class AgentManagerView(QWidget):
         lay.setContentsMargins(T.SP_4, T.SP_3, T.SP_4, T.SP_3)
         lay.setSpacing(T.SP_4)
 
-        # Icon (vector icon)
+        # Icon (Subway Coders custom logo or vector icon)
         icon_lbl = QLabel()
-        icon_lbl.setPixmap(get_pixmap("agent", size=24, color=T.PRIMARY))
+        try:
+            from demos.agent.chatbot_ui import get_subway_coders_pixmap
+            if "subway" in agent.name.lower():
+                icon_lbl.setPixmap(get_subway_coders_pixmap(size=28))
+            else:
+                icon_lbl.setPixmap(get_pixmap("agent", size=24, color=T.PRIMARY))
+        except Exception:
+            icon_lbl.setPixmap(get_pixmap("agent", size=24, color=T.PRIMARY))
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_lbl.setFixedSize(38, 38)
         icon_lbl.setStyleSheet(
@@ -454,7 +427,7 @@ class AgentManagerView(QWidget):
             f"padding:5px 12px; font-weight:600; border-radius:{T.R_SM}px; }} "
             f"QPushButton:hover {{ background-color:#1D4ED8; }}"
         )
-        run_btn.clicked.connect(lambda _, a=agent: self._open_demo_runner(a.name))
+        run_btn.clicked.connect(lambda _, a=agent: self._open_chatbot(a.name))
         lay.addWidget(run_btn)
 
         return card
@@ -464,10 +437,12 @@ class AgentManagerView(QWidget):
         dlg.exec()
         self.refresh_data()
 
-    def _open_chatbot(self):
+    def _open_chatbot(self, agent_name: str = "Subway Coders"):
         from demos.agent.chatbot_ui import AgentChatbotWindow
         win = AgentChatbotWindow()
         win.show()
+        win.raise_()
+        win.activateWindow()
         if not hasattr(self, "_chat_instances"):
             self._chat_instances = []
         self._chat_instances.append(win)

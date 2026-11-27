@@ -125,7 +125,6 @@ class MainWindow(QMainWindow):
             ("approvals",    ApprovalCenterView),
             ("policies",     PolicyManagementView),
             ("audit",        AuditLogsView),
-            ("integrations", IntegrationsView),
             ("settings",     SettingsView),
         ]
         for page_id, ViewClass in view_classes:

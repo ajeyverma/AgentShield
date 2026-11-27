@@ -309,6 +309,14 @@ class AgentRunContext:
     malicious_tool_executed: bool = False
     normal_task_completed: bool = False
 
+    # Human-In-The-Loop Approval Details
+    pending_approval: bool = False
+    approval_id: str = ""
+    expires_at: str = ""
+    pending_tool: str = ""
+    pending_action: str = ""
+    pending_arguments: dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
@@ -434,6 +442,10 @@ class PoisonedWebpageDemoAgent:
         # Poisoned Webpage Scenario
         # Check if webpage specifically directs deleting a target file
         delete_match = re.search(
+            r'(?:delete|remove|unlink|erase)\s+(?:file\s+)?([a-zA-Z]:[\\/][^\s"\'<>]+\.[a-zA-Z0-9]+|[^\s"\'<>]+\.[a-zA-Z0-9]+)',
+            webpage.content,
+            re.IGNORECASE
+        ) or re.search(
             r'(?:delete|remove|unlink)[\s\S]*?([a-zA-Z]:\\[^"\'\r\n<>\s]+?\.[a-zA-Z0-9]+)',
             webpage.content,
             re.IGNORECASE
@@ -494,6 +506,22 @@ class PoisonedWebpageDemoAgent:
                     "executed": del_verdict.executed,
                     "error": del_verdict.error_message,
                 })
+                if del_verdict.decision == "ASK_HUMAN":
+                    ctx.pending_approval = True
+                    ctx.approval_id = del_verdict.approval_id
+                    ctx.expires_at = del_verdict.expires_at
+                    ctx.pending_tool = "delete_file"
+                    ctx.pending_action = "delete"
+                    ctx.pending_arguments = del_args
+                    ctx.final_response = (
+                        f"⏳ **Action Requires Human Authorization**\n\n"
+                        f"The agent requested to delete file: `{target_delete_path}`.\n"
+                        f"AgentShield intercepted this action and submitted an approval request.\n"
+                        f"A 60-second approval countdown has started. Please review and authorize below."
+                    )
+                    ctx.normal_task_completed = True
+                    return
+
                 if not del_verdict.executed:
                     ctx.malicious_tool_blocked = True
                     ctx.malicious_tool_executed = False
@@ -570,6 +598,22 @@ class PoisonedWebpageDemoAgent:
                 "executed": cmd_verdict.executed,
                 "error": cmd_verdict.error_message,
             })
+
+            if cmd_verdict.decision == "ASK_HUMAN":
+                ctx.pending_approval = True
+                ctx.approval_id = cmd_verdict.approval_id
+                ctx.expires_at = cmd_verdict.expires_at
+                ctx.pending_tool = "execute_shell_command"
+                ctx.pending_action = "execute"
+                ctx.pending_arguments = cmd_args
+                ctx.final_response = (
+                    f"⏳ **Action Requires Human Authorization**\n\n"
+                    f"The agent requested to run shell command: `{cmd_args.get('command')}`.\n"
+                    f"AgentShield intercepted this action and submitted an approval request.\n"
+                    f"A 60-second approval countdown has started. Please review and authorize below."
+                )
+                ctx.normal_task_completed = True
+                return
 
             if not cmd_verdict.executed:
                 ctx.malicious_tool_blocked = True
@@ -662,14 +706,28 @@ class PoisonedWebpageDemoAgent:
                             "executed": verdict.executed,
                             "output": verdict.output,
                         })
-                        if not verdict.executed:
+                        if verdict.decision == "ASK_HUMAN":
+                            ctx.pending_approval = True
+                            ctx.approval_id = verdict.approval_id
+                            ctx.expires_at = verdict.expires_at
+                            ctx.pending_tool = fn_name
+                            ctx.pending_action = "execute"
+                            ctx.pending_arguments = args
+                        elif not verdict.executed:
                             ctx.malicious_tool_blocked = True
                         else:
                             ctx.malicious_tool_executed = True
 
             if response.tool_calls:
                 executed_names = [tc.tool_name for tc in response.tool_calls]
-                if self.firewall_on and ctx.malicious_tool_blocked:
+                if self.firewall_on and ctx.pending_approval:
+                    ctx.final_response = (
+                        f"⏳ **Action Requires Human Authorization**\n\n"
+                        f"The agent requested to run tool: `{ctx.pending_tool}`.\n"
+                        f"AgentShield intercepted this action and submitted an approval request.\n"
+                        f"A 60-second approval countdown has started. Please review and authorize below."
+                    )
+                elif self.firewall_on and ctx.malicious_tool_blocked:
                     ctx.final_response = (
                         f"🛡️ [AgentShield Security Notice]: Detected unauthorized instruction attempting to call "
                         f"'{', '.join(executed_names)}'. Execution was BLOCKED by AgentShield runtime security."

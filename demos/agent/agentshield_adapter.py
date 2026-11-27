@@ -11,10 +11,13 @@ Reuses existing AgentShield core components:
 
 from __future__ import annotations
 
+import json
 import logging
+import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from agentshield.contracts.action import ActionRequest
@@ -52,13 +55,98 @@ class AdapterExecutionResult:
     tool_name: str
     action_name: str
     decision: str  # "ALLOW", "BLOCK", "ASK_HUMAN"
-    status: str    # "EXECUTED", "BLOCKED", "REQUIRES_APPROVAL", "ERROR"
+    status: str    # "EXECUTED", "BLOCKED", "REQUIRES_APPROVAL", "ERROR", "PENDING_APPROVAL"
     executed: bool
     output: Any
     reasons: list[str] = field(default_factory=list)
     threat_findings: list[dict[str, Any]] = field(default_factory=list)
     request_id: str = ""
     error_message: str | None = None
+    approval_id: str = ""
+    expires_at: str = ""
+    arguments: dict[str, Any] = field(default_factory=dict)
+
+
+def get_approval_db_path() -> Path:
+    """Locate the AgentShield SQLite database."""
+    p1 = Path(__file__).resolve().parents[2] / "agentshield_dev.db"
+    if p1.exists():
+        return p1
+    return Path("agentshield_dev.db").resolve()
+
+
+def check_approval_status(approval_id: str) -> dict[str, Any]:
+    """Check approval status and auto-expire if past the 60s window."""
+    db_path = get_approval_db_path()
+    if not db_path.exists():
+        return {"status": "not_found", "remaining_seconds": 0}
+    try:
+        conn = sqlite3.connect(str(db_path))
+        c = conn.cursor()
+        c.execute("SELECT status, expires_at, tool_name, operation, arguments_json FROM approval_requests WHERE id = ?", (approval_id,))
+        row = c.fetchone()
+        if not row:
+            conn.close()
+            return {"status": "not_found", "remaining_seconds": 0}
+
+        status, exp_str, tool, op, args_str = row
+        exp_dt = None
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                exp_dt = datetime.strptime(exp_str, fmt).replace(tzinfo=UTC)
+                break
+            except Exception:
+                pass
+
+        remaining = 0
+        now = datetime.now(UTC)
+        if exp_dt:
+            remaining = max(0, int((exp_dt - now).total_seconds()))
+            if remaining == 0 and status == "pending":
+                status = "expired"
+                c.execute("UPDATE approval_requests SET status = 'expired' WHERE id = ?", (approval_id,))
+                conn.commit()
+
+        conn.close()
+        return {
+            "status": status,
+            "remaining_seconds": remaining,
+            "tool_name": tool,
+            "operation": op,
+            "arguments": json.loads(args_str) if args_str else {},
+        }
+    except Exception as exc:
+        return {"status": "error", "error": str(exc), "remaining_seconds": 0}
+
+
+def resolve_approval_record(approval_id: str, decision: str, comment: str = "") -> bool:
+    """Resolve an approval request as 'approved' or 'rejected' in the database."""
+    db_path = get_approval_db_path()
+    if not db_path.exists():
+        return False
+    try:
+        conn = sqlite3.connect(str(db_path))
+        c = conn.cursor()
+        now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        status_val = "approved" if decision.lower() in ("approve", "approved") else "rejected"
+        c.execute(
+            """UPDATE approval_requests 
+               SET status = ?, reviewed_by = 'Human Admin', reviewed_at = ?, review_comment = ? 
+               WHERE id = ?""",
+            (status_val, now_str, comment or f"Decided via UI as {status_val}", approval_id)
+        )
+        # Synchronize activity_events table so Activity view shows 'approved'
+        c.execute(
+            """UPDATE activity_events 
+               SET execution_status = ? 
+               WHERE request_id IN (SELECT request_id FROM approval_requests WHERE id = ?)""",
+            (status_val, approval_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
 
 
 DEMO_TENANT_UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -92,22 +180,22 @@ class AgentShieldAdapter:
         self.cached_webpage_threats: ThreatAnalysisResult | None = None
 
         # Build baseline permissions for demo agent
-        # Least privilege: demo agent has low allowed risk and only permits benign summarization
+        # Least privilege: demo agent has low allowed risk and permits unknown, file_system, and terminal
         self.agent_permissions = AgentPermissions(
             agent_id=self.agent_id,
             owner_user_id=self.tenant_id,
-            allowed_categories={"unknown", "file_system"},
+            allowed_categories={"unknown", "file_system", "terminal"},
             denied_categories={"email"},
             max_permitted_risk_score=40.0,
         )
 
-        # Baseline policies (Strict exfiltration and prompt injection prevention)
+        # Baseline policies: Destructive operations trigger ASK_HUMAN for human approval
         self.policies: list[Policy] = [
             Policy(
                 id=str(uuid.uuid4()),
                 user_id=self.tenant_id,
-                name="Block Exfiltration & Prompt Injection",
-                description="Block email sending and file reading when untrusted input is tainted with injection.",
+                name="Require Human Approval for Destructive Operations",
+                description="Require human approval before deleting files or high-impact actions.",
                 is_enabled=True,
                 rules_json="""[
                     {
@@ -116,6 +204,13 @@ class AgentShieldAdapter:
                         "effect": "BLOCK",
                         "conditions": {"tool_category": "email"},
                         "reasons": ["Direct email transmission is blocked for untrusted context."]
+                    },
+                    {
+                        "rule_id": "rule-ask-human-delete",
+                        "name": "Require approval on file delete",
+                        "effect": "ASK_HUMAN",
+                        "conditions": {"operation": "delete"},
+                        "reasons": ["Destructive file deletion requires human approval."]
                     }
                 ]""",
             )
@@ -327,21 +422,81 @@ class AgentShieldAdapter:
                 )
 
             elif decision.decision == Decision.ASK_HUMAN:
-                # ASK_HUMAN: Stop execution; do NOT auto-approve
+                # ASK_HUMAN: Halt execution and register 60s human approval window
                 reason_str = reasons[0] if reasons else "Action requires human approval."
                 mock_tool_manager.record_shield_blocked_call(tool_name, action_name, arguments, f"PENDING_APPROVAL: {reason_str}")
                 logger.info("AgentShield REQUIRES_APPROVAL for %s.%s", tool_name, action_name)
+
+                approval_id = str(uuid.uuid4())
+                now_utc = datetime.now(UTC)
+                expires_at = now_utc + timedelta(seconds=60)
+
+                db_path = get_approval_db_path()
+                if db_path.exists():
+                    try:
+                        conn = sqlite3.connect(str(db_path))
+                        c = conn.cursor()
+                        c.execute(
+                            """INSERT INTO approval_requests (
+                                id, request_id, user_id, agent_id, tenant_id, tool_name, operation,
+                                risk_level, risk_score, policy_version, status, description, arguments_json, created_at, expires_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                approval_id,
+                                request_id,
+                                str(self.tenant_uuid),
+                                self.agent_id,
+                                self.tenant_id,
+                                tool_name,
+                                action_name,
+                                "HIGH",
+                                85.0,
+                                1,
+                                "pending",
+                                f"Action '{tool_name}' requires human approval",
+                                json.dumps(arguments),
+                                now_utc.strftime("%Y-%m-%d %H:%M:%S"),
+                                expires_at.strftime("%Y-%m-%d %H:%M:%S"),
+                            ),
+                        )
+                        c.execute(
+                            """INSERT INTO activity_events (
+                                id, request_id, user_id, agent_id, tool_name, operation,
+                                decision, risk_level, execution_status, arguments_summary, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                str(uuid.uuid4()),
+                                request_id,
+                                str(self.tenant_uuid),
+                                self.agent_id,
+                                tool_name,
+                                action_name,
+                                "ASK_HUMAN",
+                                "HIGH",
+                                "pending",
+                                str(list(arguments.keys())) if arguments else None,
+                                now_utc.strftime("%Y-%m-%d %H:%M:%S"),
+                            ),
+                        )
+                        conn.commit()
+                        conn.close()
+                    except Exception as exc:
+                        logger.warning("Failed to insert approval_request: %s", exc)
+
                 return AdapterExecutionResult(
                     tool_name=tool_name,
                     action_name=action_name,
                     decision="ASK_HUMAN",
-                    status="REQUIRES_APPROVAL",
+                    status="PENDING_APPROVAL",
                     executed=False,
                     output=None,
                     reasons=reasons,
                     threat_findings=threat_findings_summary,
                     request_id=request_id,
-                    error_message="Action halted: Human-in-the-loop approval required before execution.",
+                    error_message=f"Action requires human approval: {reason_str}",
+                    approval_id=approval_id,
+                    expires_at=expires_at.isoformat(),
+                    arguments=arguments,
                 )
 
             elif decision.decision == Decision.ALLOW:
@@ -365,6 +520,10 @@ class AgentShieldAdapter:
         except Exception as exc:
             logger.error("Exception during AgentShield execution evaluation: %s", exc)
             return self._build_fail_closed_result(tool_name, action_name, request_id, str(exc))
+
+    def execute_approved_action(self, tool_name: str, action_name: str, arguments: dict[str, Any]) -> Any:
+        """Execute tool following human approval."""
+        return self._dispatch_to_mock_tool(tool_name, action_name, arguments)
 
     def _dispatch_to_mock_tool(self, tool_name: str, action_name: str, arguments: dict[str, Any]) -> Any:
         """Dispatch authorized execution to the underlying tool."""

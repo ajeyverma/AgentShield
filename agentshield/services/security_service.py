@@ -149,6 +149,13 @@ class SecurityService:
         self.session.add(dec_model)
 
         # 5. Persist corresponding ActivityEvent record
+        if decision.decision == Decision.ALLOW:
+            init_status = "approved"
+        elif decision.decision == Decision.ASK_HUMAN:
+            init_status = "pending"
+        else:
+            init_status = "denied"
+
         act_event = ActivityEvent(
             request_id=str(request.request_id),
             user_id=user_id,
@@ -157,7 +164,7 @@ class SecurityService:
             operation=request.operation or "invoke",
             decision=decision.decision.value,
             risk_level=decision.risk_level.value,
-            execution_status="approved" if decision.decision == Decision.ALLOW else "denied",
+            execution_status=init_status,
             arguments_summary=str(list(request.arguments.keys())) if request.arguments else None,
         )
         self.session.add(act_event)

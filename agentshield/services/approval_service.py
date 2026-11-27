@@ -14,11 +14,12 @@ import math
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentshield.contracts.events import EventComponent, EventSeverity
 from agentshield.core.exceptions import ApprovalNotFoundError, AuthorizationError, ValidationError
+from agentshield.database.models.activity import ActivityEvent
 from agentshield.database.models.approval import ApprovalHistory, ApprovalRequest
 from agentshield.execution.exceptions import ApprovalVerificationError
 from agentshield.observability.event_publisher import event_publisher
@@ -224,6 +225,15 @@ class ApprovalService:
         approval.reviewed_at = now
         approval.review_comment = comment
 
+        # Update matching ActivityEvent so Activity logs immediately reflect 'approved'
+        if approval.request_id:
+            stmt_act = (
+                update(ActivityEvent)
+                .where(ActivityEvent.request_id == approval.request_id)
+                .values(execution_status="approved")
+            )
+            await self.session.execute(stmt_act)
+
         # 8. Record immutable audit history
         history = ApprovalHistory(
             approval_id=approval.id,
@@ -340,6 +350,15 @@ class ApprovalService:
         approval.reviewer_role = str(user_role)
         approval.reviewed_at = now
         approval.rejection_reason = rejection_reason.strip()
+
+        # Update matching ActivityEvent so Activity logs reflect 'denied'
+        if approval.request_id:
+            stmt_act = (
+                update(ActivityEvent)
+                .where(ActivityEvent.request_id == approval.request_id)
+                .values(execution_status="denied")
+            )
+            await self.session.execute(stmt_act)
 
         history = ApprovalHistory(
             approval_id=approval.id,

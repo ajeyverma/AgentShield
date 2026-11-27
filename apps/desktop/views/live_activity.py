@@ -1,6 +1,8 @@
 """Live Activity view — Phase 6 with Controlled Tool Execution Integration & Demo Fallback."""
 from __future__ import annotations
 import json
+import sqlite3
+from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QDialog,
@@ -31,7 +33,19 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
 
     # Decision + Risk row
     decision_val = rec.get("decision", "ALLOW") if is_dict else rec.decision
-    status_val = rec.get("status", "COMPLETED") if is_dict else rec.status
+    raw_status = rec.get("_display_status") or rec.get("status") or rec.get("execution_status", "COMPLETED") if is_dict else rec.status
+    st_lower = str(raw_status).lower()
+    if st_lower in ("approved", "completed", "success"):
+        status_val = "Approved"
+    elif st_lower in ("pending", "pending_approval"):
+        status_val = "Pending"
+    elif st_lower in ("denied", "blocked", "rejected"):
+        status_val = "Denied"
+    elif st_lower in ("expired",):
+        status_val = "Expired"
+    else:
+        status_val = str(raw_status).capitalize()
+
     risk_val = rec.get("risk_level", "LOW") if is_dict else rec.risk_level
 
     top = QHBoxLayout()
@@ -119,7 +133,55 @@ def _activity_detail(rec: dict | ActivityRecord, parent) -> None:
     dlg.exec()
 
 
-def _row_from_execution(exec_item: dict) -> list:
+def _load_approval_status_map() -> dict[str, str]:
+    """Return map of request_id -> status from approval_requests."""
+    status_map = {}
+    for p in [Path("agentshield_dev.db"), Path(__file__).resolve().parents[3] / "agentshield_dev.db"]:
+        if p.exists():
+            try:
+                conn = sqlite3.connect(str(p))
+                c = conn.cursor()
+                c.execute("SELECT request_id, status FROM approval_requests ORDER BY created_at ASC")
+                for req_id, st in c.fetchall():
+                    if req_id and st:
+                        status_map[str(req_id)] = st.lower()
+                conn.close()
+                break
+            except Exception:
+                pass
+    return status_map
+
+
+def _row_from_execution(exec_item: dict, approval_map: dict | None = None) -> list:
+    st_raw = str(exec_item.get("execution_status") or exec_item.get("status") or "").lower()
+    req_id = str(exec_item.get("request_id") or "")
+
+    # If linked to an approval request, sync with the latest human decision
+    if approval_map and req_id in approval_map:
+        appr_status = approval_map[req_id]
+        if appr_status == "approved":
+            st_raw = "approved"
+        elif appr_status == "pending":
+            st_raw = "pending"
+        elif appr_status == "expired":
+            st_raw = "expired"
+        elif appr_status == "rejected":
+            st_raw = "denied"
+
+    if st_raw in ("approved", "completed", "success"):
+        disp_status = "Approved"
+    elif st_raw in ("pending", "pending_approval"):
+        disp_status = "Pending"
+    elif st_raw in ("denied", "blocked", "rejected"):
+        disp_status = "Denied"
+    elif st_raw in ("expired",):
+        disp_status = "Expired"
+    else:
+        disp_status = st_raw.capitalize() if st_raw else "Completed"
+
+    # Store display status on record for detail dialog
+    exec_item["_display_status"] = disp_status
+
     return [
         to_ist_str(exec_item.get("created_at")),
         str(exec_item.get("agent_id", ""))[:12],
@@ -127,7 +189,7 @@ def _row_from_execution(exec_item: dict) -> list:
         str(exec_item.get("operation") or exec_item.get("action_name", "")),
         str(exec_item.get("decision", "ALLOW")),
         str(exec_item.get("risk_level", "LOW")),
-        str(exec_item.get("execution_status") or exec_item.get("status", "COMPLETED")),
+        disp_status,
         str(exec_item.get("execution_id") or exec_item.get("id")),
     ]
 
@@ -139,6 +201,29 @@ class LiveActivityView(QWidget):
         super().__init__(parent)
         self._records = {}
         self._build()
+
+    def _fetch_from_sqlite(self) -> list[dict]:
+        """Fallback to direct SQLite read so Activity displays even if backend is offline."""
+        for p in [Path("agentshield_dev.db"), Path(__file__).resolve().parents[3] / "agentshield_dev.db"]:
+            if p.exists():
+                try:
+                    conn = sqlite3.connect(str(p))
+                    conn.row_factory = sqlite3.Row
+                    c = conn.cursor()
+                    c.execute("""
+                        SELECT 
+                            id, request_id, created_at, agent_id, tool_name, operation,
+                            decision, risk_level, execution_status, arguments_summary
+                        FROM activity_events
+                        ORDER BY created_at DESC
+                        LIMIT 100
+                    """)
+                    rows = [dict(r) for r in c.fetchall()]
+                    conn.close()
+                    return rows
+                except Exception:
+                    pass
+        return []
 
     def _build(self):
         root = QVBoxLayout(self)
@@ -154,6 +239,9 @@ class LiveActivityView(QWidget):
                 act = backend_client.get_activity(size=50)
                 if act and "items" in act and act["items"]:
                     live_executions = act["items"]
+
+        if not live_executions:
+            live_executions = self._fetch_from_sqlite()
 
         hdr_row = QHBoxLayout()
         hdr_row.addWidget(PageHeader(
@@ -189,7 +277,8 @@ class LiveActivityView(QWidget):
         headers = ["Timestamp", "Agent", "Tool", "Operation",
                    "Decision", "Risk Level", "Status", "ID"]
 
-        rows = [_row_from_execution(r) for r in live_executions]
+        approval_map = _load_approval_status_map()
+        rows = [_row_from_execution(r, approval_map) for r in live_executions]
         for r in live_executions:
             eid = str(r.get("execution_id") or r.get("id"))
             self._records[eid] = r
@@ -215,7 +304,11 @@ class LiveActivityView(QWidget):
                 if act and "items" in act and act["items"]:
                     live_executions = act["items"]
 
-        rows = [_row_from_execution(r) for r in live_executions]
+        if not live_executions:
+            live_executions = self._fetch_from_sqlite()
+
+        approval_map = _load_approval_status_map()
+        rows = [_row_from_execution(r, approval_map) for r in live_executions]
         for r in live_executions:
             eid = str(r.get("execution_id") or r.get("id"))
             self._records[eid] = r
@@ -233,7 +326,20 @@ class LiveActivityView(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             if backend_client.is_connected:
                 backend_client.clear_activity()
+            for p in [Path("agentshield_dev.db"), Path(__file__).resolve().parents[3] / "agentshield_dev.db"]:
+                if p.exists():
+                    try:
+                        conn = sqlite3.connect(str(p))
+                        c = conn.cursor()
+                        c.execute("DELETE FROM activity_events")
+                        conn.commit()
+                        conn.close()
+                    except Exception:
+                        pass
             self._records.clear()
+            if hasattr(self, "_table"):
+                self._table.set_rows([])
+            self.refresh_data()
             if hasattr(self, "_table"):
                 self._table.set_rows([])
             self.refresh_data()

@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from copy import deepcopy
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -92,6 +95,24 @@ class ApprovalDetailDialog(QDialog):
         top.addWidget(RiskBadge(risk_level))
         top.addWidget(StatusBadge(status_val))
         layout.addLayout(top)
+
+        if status_val.lower() == "pending":
+            exp_val = self.data.get("expires_at")
+            rem_sec = 60
+            if exp_val:
+                try:
+                    exp_dt = datetime.fromisoformat(str(exp_val).replace("Z", "+00:00"))
+                    if exp_dt.tzinfo is None:
+                        exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                    rem_sec = max(0, int((exp_dt - datetime.now(timezone.utc)).total_seconds()))
+                except Exception:
+                    rem_sec = 60
+            countdown_bar = QLabel(f"⏱️ 1-Minute Approval Window: {rem_sec}s remaining (Auto-rejects at 0s)")
+            countdown_bar.setStyleSheet(
+                "background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; "
+                "border-radius: 8px; font-weight: 700; font-size: 13px; padding: 8px 12px;"
+            )
+            layout.addWidget(countdown_bar)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
@@ -239,7 +260,15 @@ class ApprovalCenterView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._records: list[dict[str, Any]] = []
+        self._active_timers: list[dict[str, Any]] = []
         self._build_ui()
+
+        # 1-second countdown timer for active pending approvals
+        self._countdown_timer = QTimer(self)
+        self._countdown_timer.setInterval(1000)
+        self._countdown_timer.timeout.connect(self._tick_timers)
+        self._countdown_timer.start()
+
         self.refresh_data()
 
     def _build_ui(self):
@@ -302,13 +331,28 @@ class ApprovalCenterView(QWidget):
         root.addWidget(scroll, stretch=1)
 
     def refresh_data(self):
-        """Fetch real approval requests from backend."""
+        """Fetch real approval requests from backend or local database."""
         backend_items = backend_client.get_approvals()
-        if backend_items is not None:
+        if backend_items:
             self._records = backend_items
         else:
-            self._records = []
+            self._records = self._fetch_from_sqlite()
         self._apply_filters()
+
+    def _fetch_from_sqlite(self) -> list[dict[str, Any]]:
+        for p in [Path("agentshield_dev.db"), Path(__file__).resolve().parents[3] / "agentshield_dev.db"]:
+            if p.exists():
+                try:
+                    conn = sqlite3.connect(str(p))
+                    conn.row_factory = sqlite3.Row
+                    c = conn.cursor()
+                    c.execute("SELECT * FROM approval_requests ORDER BY created_at DESC")
+                    rows = [dict(r) for r in c.fetchall()]
+                    conn.close()
+                    return rows
+                except Exception:
+                    pass
+        return []
 
     def _apply_filters(self):
         st_filter = self._status_filter.currentText().lower()
@@ -329,6 +373,7 @@ class ApprovalCenterView(QWidget):
         self._render_list(filtered)
 
     def _render_list(self, records: list[dict[str, Any]]):
+        self._active_timers.clear()
         while self._list_layout.count() > 1:
             item = self._list_layout.takeAt(0)
             if item.widget():
@@ -392,16 +437,96 @@ class ApprovalCenterView(QWidget):
         lay.addWidget(RiskBadge(risk_val))
         lay.addWidget(StatusBadge(st))
 
+        # 60-Second Live Countdown Timer for pending requests
+        appr_id = rec.get("id") or rec.get("request_id")
+        if st.lower() == "pending":
+            exp_val = rec.get("expires_at")
+            exp_dt = None
+            if exp_val:
+                try:
+                    exp_dt = datetime.fromisoformat(str(exp_val).replace("Z", "+00:00"))
+                    if exp_dt.tzinfo is None:
+                        exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    exp_dt = None
+            if not exp_dt:
+                created_str = rec.get("created_at")
+                if created_str:
+                    try:
+                        c_dt = datetime.fromisoformat(str(created_str).replace("Z", "+00:00"))
+                        if c_dt.tzinfo is None:
+                            c_dt = c_dt.replace(tzinfo=timezone.utc)
+                        exp_dt = c_dt + timedelta(seconds=60)
+                    except Exception:
+                        exp_dt = datetime.now(timezone.utc) + timedelta(seconds=60)
+                else:
+                    exp_dt = datetime.now(timezone.utc) + timedelta(seconds=60)
+
+            rem_sec = max(0, int((exp_dt - datetime.now(timezone.utc)).total_seconds()))
+            timer_lbl = QLabel(f"⏱️ {rem_sec}s")
+            timer_lbl.setMinimumWidth(65)
+            timer_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            timer_lbl.setStyleSheet(
+                "background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; "
+                "font-weight: 700; font-size: 11px; padding: 4px 6px; border-radius: 6px;"
+            )
+            timer_lbl.setToolTip("Auto-rejects when countdown hits 0 seconds.")
+            lay.addWidget(timer_lbl)
+            self._active_timers.append({
+                "label": timer_lbl,
+                "expires_at": exp_dt,
+                "id": appr_id,
+            })
+
+            # Quick inline Approve & Reject buttons
+            quick_approve_btn = QPushButton("Approve")
+            quick_approve_btn.setStyleSheet(
+                "QPushButton { background: #16A34A; color: white; border: none; font-weight: 600; font-size: 11px; border-radius: 6px; padding: 4px 10px; } "
+                "QPushButton:hover { background: #15803D; }"
+            )
+            quick_approve_btn.clicked.connect(lambda _, a_id=appr_id: self._execute_decision(a_id, "approve", "Approved via Quick Action"))
+            lay.addWidget(quick_approve_btn)
+
+            quick_reject_btn = QPushButton("Reject")
+            quick_reject_btn.setStyleSheet(
+                "QPushButton { background: #DC2626; color: white; border: none; font-weight: 600; font-size: 11px; border-radius: 6px; padding: 4px 10px; } "
+                "QPushButton:hover { background: #B91C1C; }"
+            )
+            quick_reject_btn.clicked.connect(lambda _, a_id=appr_id: self._execute_decision(a_id, "reject", "Rejected via Quick Action"))
+            lay.addWidget(quick_reject_btn)
+
         review_btn = QPushButton("Review")
         review_btn.setStyleSheet(
             f"QPushButton {{ background-color: #2563EB; color: #FFFFFF; border: none; font-weight: 600; border-radius: 6px; padding: 4px 10px; font-size: 12px; }}"
             f"QPushButton:hover {{ background-color: #1D4ED8; }}"
         )
-        review_btn.setFixedWidth(80)
+        review_btn.setFixedWidth(70)
         review_btn.clicked.connect(lambda _, r=rec: self._open_detail(r))
         lay.addWidget(review_btn)
 
         return card
+
+    def _tick_timers(self):
+        """Update live countdown seconds for all pending approval cards."""
+        now = datetime.now(timezone.utc)
+        expired_found = False
+        for item in list(self._active_timers):
+            exp_dt = item["expires_at"]
+            rem = max(0, int((exp_dt - now).total_seconds()))
+            if rem > 0:
+                item["label"].setText(f"⏱️ {rem}s")
+            else:
+                item["label"].setText("⏱️ Expired")
+                item["label"].setStyleSheet(
+                    "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; "
+                    "font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 6px;"
+                )
+                # Auto-reject expired item
+                self._resolve_in_sqlite(item["id"], "rejected", "Auto-rejected: 1-minute approval timer expired.")
+                expired_found = True
+
+        if expired_found:
+            self.refresh_data()
 
     def _open_detail(self, rec: dict[str, Any]):
         appr_id = rec.get("id") or rec.get("request_id")
@@ -416,18 +541,58 @@ class ApprovalCenterView(QWidget):
         )
         dlg.exec()
 
+    def _resolve_in_sqlite(self, approval_id: str, action: str, note: str | None) -> bool:
+        """Resolve record directly in SQLite database."""
+        for p in [Path("agentshield_dev.db"), Path(__file__).resolve().parents[3] / "agentshield_dev.db"]:
+            if p.exists():
+                try:
+                    conn = sqlite3.connect(str(p))
+                    c = conn.cursor()
+                    st = "approved" if action == "approve" else "rejected"
+                    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    c.execute(
+                        """UPDATE approval_requests 
+                           SET status = ?, reviewed_by = 'Human Admin', reviewed_at = ?, review_comment = ? 
+                           WHERE id = ?""",
+                        (st, now_str, note or f"Decided via UI as {st}", approval_id)
+                    )
+                    c.execute(
+                        """UPDATE activity_events 
+                           SET execution_status = ? 
+                           WHERE request_id IN (SELECT request_id FROM approval_requests WHERE id = ?)""",
+                        (st, approval_id)
+                    )
+                    conn.commit()
+                    conn.close()
+                    return True
+                except Exception:
+                    pass
+        return False
+
     def _execute_decision(self, approval_id: str, action: str, note: str | None):
+        success = False
         if action == "approve":
             res = backend_client.approve_request(approval_id, comment=note)
-            if res:
+            sqlite_ok = self._resolve_in_sqlite(approval_id, "approve", note)
+            if res or sqlite_ok:
+                success = True
+            if success:
                 QMessageBox.information(self, "Approved", "Execution request successfully approved and resumed!")
             else:
-                QMessageBox.warning(self, "Approval Error", "Failed to approve request via backend.")
+                QMessageBox.warning(self, "Approval Error", "Failed to approve request.")
         elif action == "reject":
             res = backend_client.reject_request(approval_id, reason=note or "Rejected by human approver")
-            if res:
+            sqlite_ok = self._resolve_in_sqlite(approval_id, "reject", note)
+            if res or sqlite_ok:
+                success = True
+                success = True
+            else:
+                success = self._resolve_in_sqlite(approval_id, "reject", note)
+            if success:
                 QMessageBox.information(self, "Rejected", "Execution request rejected.")
             else:
-                QMessageBox.warning(self, "Rejection Error", "Failed to reject request via backend.")
+                QMessageBox.warning(self, "Rejection Error", "Failed to reject request.")
+
+        self.refresh_data()
 
         self.refresh_data()

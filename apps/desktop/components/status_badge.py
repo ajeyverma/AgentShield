@@ -31,6 +31,7 @@ class StatusBadge(QLabel):
         "UI Demo":       (T.PRIMARY, T.PRIMARY_LIGHT),
         "Completed":     (T.SUCCESS, T.SUCCESS_BG),
         "Blocked":       (T.DANGER, T.DANGER_BG),
+        "Denied":        (T.DANGER, T.DANGER_BG),
         "Pending Approval": (T.WARNING, T.WARNING_BG),
         "Failed":        (T.DANGER, T.DANGER_BG),
         "Success":       (T.SUCCESS, T.SUCCESS_BG),

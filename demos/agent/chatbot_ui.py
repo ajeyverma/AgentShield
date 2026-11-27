@@ -45,16 +45,26 @@ for p in (CURRENT_DIR, ROOT_DIR):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
+from datetime import datetime, timezone, timedelta
+
 # Demo agent internal imports (supports standalone folder or monorepo)
 try:
     from demos.agent.icons import get_icon, get_pixmap
     from demos.agent.agent import PoisonedWebpageDemoAgent, Webpage
-    from demos.agent.agentshield_adapter import AgentShieldAdapter
+    from demos.agent.agentshield_adapter import (
+        AgentShieldAdapter,
+        check_approval_status,
+        resolve_approval_record,
+    )
     from demos.agent.config import settings
 except ImportError:
     from icons import get_icon, get_pixmap
     from agent import PoisonedWebpageDemoAgent, Webpage
-    from agentshield_adapter import AgentShieldAdapter
+    from agentshield_adapter import (
+        AgentShieldAdapter,
+        check_approval_status,
+        resolve_approval_record,
+    )
     from config import settings
 
 TARGET_FILE = Path(r"C:\Users\ajayv\Downloads\IMG_4023_0.webp")
@@ -161,6 +171,12 @@ class ChatWorker(QObject):
                 "tool_calls": ctx.tool_call_attempts,
                 "firewall_mode": "PROTECTED" if agentshield_running else "UNPROTECTED",
                 "errors": ctx.errors,
+                "pending_approval": getattr(ctx, "pending_approval", False),
+                "approval_id": getattr(ctx, "approval_id", ""),
+                "expires_at": getattr(ctx, "expires_at", ""),
+                "pending_tool": getattr(ctx, "pending_tool", ""),
+                "pending_action": getattr(ctx, "pending_action", ""),
+                "pending_arguments": getattr(ctx, "pending_arguments", {}),
             }
             self.finished.emit(result)
 
@@ -204,6 +220,253 @@ class PromptCard(QFrame):
 
 # ── ChatGPT Style Message Row ────────────────────────────────────────────────
 
+class ApprovalPendingCard(QFrame):
+    """Interactive 1-minute countdown approval card displayed in chat when an action triggers ASK_HUMAN."""
+
+    def __init__(
+        self,
+        approval_id: str,
+        tool_name: str,
+        action_name: str,
+        arguments: dict[str, Any],
+        expires_at: str | None = None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.approval_id = approval_id
+        self.tool_name = tool_name
+        self.action_name = action_name
+        self.arguments = arguments
+        self.is_resolved = False
+
+        now_utc = datetime.now(timezone.utc)
+        self.expires_dt = now_utc + timedelta(seconds=60)
+        if expires_at:
+            try:
+                dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                self.expires_dt = dt
+            except Exception:
+                pass
+
+        self.remaining_seconds = max(0, int((self.expires_dt - datetime.now(timezone.utc)).total_seconds()))
+        self._dot_count = 1
+
+        self._setup_ui()
+
+        # 1-second countdown and cross-process polling timer
+        self._timer = QTimer(self)
+        self._timer.setInterval(1000)
+        self._timer.timeout.connect(self._on_tick)
+        self._timer.start()
+
+        # Animated dots timer for "... pending approval"
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(320)
+        self._anim_timer.timeout.connect(self._animate_dots)
+        self._anim_timer.start()
+
+    def _setup_ui(self):
+        self.setStyleSheet(
+            "QFrame { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 12px; } "
+            "QLabel { border: none; background: transparent; }"
+        )
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(14, 12, 14, 12)
+        self._layout.setSpacing(10)
+
+        # Header row: Title + Live 60s Countdown Badge
+        top_row = QHBoxLayout()
+        top_row.setSpacing(8)
+
+        self.title_lbl = QLabel("⏳ Action Requires Human Authorization")
+        self.title_lbl.setStyleSheet("font-weight: 700; font-size: 13px; color: #92400E;")
+        top_row.addWidget(self.title_lbl)
+
+        top_row.addStretch()
+
+        self.timer_badge = QLabel(f"⏱️ {self.remaining_seconds}s remaining")
+        self.timer_badge.setStyleSheet(
+            "background: #FEF3C7; color: #B45309; border: 1px solid #FCD34D; "
+            "font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 6px;"
+        )
+        top_row.addWidget(self.timer_badge)
+        self._layout.addLayout(top_row)
+
+        # Animated status line with cycling dots
+        self.status_lbl = QLabel("Status: Pending human approval...")
+        self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #B45309;")
+        self._layout.addWidget(self.status_lbl)
+
+        # Action detail box
+        detail_frame = QFrame()
+        detail_frame.setStyleSheet(
+            "background: #FFFFFF; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 10px;"
+        )
+        d_layout = QVBoxLayout(detail_frame)
+        d_layout.setContentsMargins(6, 6, 6, 6)
+        d_layout.setSpacing(4)
+
+        target_info = self.arguments.get("path") or self.arguments.get("command") or json.dumps(self.arguments)
+        target_lbl = QLabel(f"<b>Tool:</b> <code style='color:#B45309;'>{self.tool_name}</code>  •  <b>Target:</b> <code style='color:#1F2937;'>{target_info}</code>")
+        target_lbl.setStyleSheet("font-size: 12px; color: #374151;")
+        target_lbl.setWordWrap(True)
+        d_layout.addWidget(target_lbl)
+        self._layout.addWidget(detail_frame)
+
+        # Buttons row: Approve and Reject
+        self.btn_row = QHBoxLayout()
+        self.btn_row.setSpacing(10)
+
+        self.approve_btn = QPushButton("✅ Approve Action")
+        self.approve_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.approve_btn.setStyleSheet(
+            "QPushButton { background: #16A34A; color: #FFFFFF; border: none; font-weight: 700; "
+            "font-size: 12px; border-radius: 8px; padding: 6px 14px; } "
+            "QPushButton:hover { background: #15803D; }"
+        )
+        self.approve_btn.clicked.connect(self._on_approve_clicked)
+        self.btn_row.addWidget(self.approve_btn)
+
+        self.reject_btn = QPushButton("❌ Reject")
+        self.reject_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.reject_btn.setStyleSheet(
+            "QPushButton { background: #DC2626; color: #FFFFFF; border: none; font-weight: 700; "
+            "font-size: 12px; border-radius: 8px; padding: 6px 14px; } "
+            "QPushButton:hover { background: #B91C1C; }"
+        )
+        self.reject_btn.clicked.connect(self._on_reject_clicked)
+        self.btn_row.addWidget(self.reject_btn)
+
+        self.btn_row.addStretch()
+        self._layout.addLayout(self.btn_row)
+
+    def _animate_dots(self):
+        if self.is_resolved:
+            return
+        self._dot_count = (self._dot_count % 3) + 1
+        dots = "." * self._dot_count
+        self.status_lbl.setText(f"Status: Pending human approval{dots}")
+
+    def _on_tick(self):
+        if self.is_resolved:
+            return
+
+        self.remaining_seconds -= 1
+        if self.remaining_seconds > 0:
+            self.timer_badge.setText(f"⏱️ {self.remaining_seconds}s remaining")
+        else:
+            self.timer_badge.setText("⏱️ Expired")
+
+        # Check if decision occurred in external desktop Approval Center
+        status_info = check_approval_status(self.approval_id)
+        current_status = status_info.get("status", "pending").lower()
+
+        if current_status == "approved":
+            self._execute_and_show_approved(source="Approval Center")
+        elif current_status in ("rejected", "expired"):
+            self._show_rejected(reason=f"Action marked as {current_status} in Approval Center.")
+        elif self.remaining_seconds <= 0:
+            self._handle_timeout()
+
+    def _on_approve_clicked(self):
+        if self.is_resolved:
+            return
+        resolve_approval_record(self.approval_id, "approved", "Approved by user in chat")
+        self._execute_and_show_approved(source="Chat")
+
+    def _on_reject_clicked(self):
+        if self.is_resolved:
+            return
+        resolve_approval_record(self.approval_id, "rejected", "Rejected by user in chat")
+        self._show_rejected(reason="Action was explicitly rejected by user.")
+
+    def _execute_and_show_approved(self, source: str = "Chat"):
+        self.is_resolved = True
+        self._timer.stop()
+        self._anim_timer.stop()
+
+        # Execute the tool safely via AgentShield adapter
+        adapter = AgentShieldAdapter(use_live_backend=True)
+        try:
+            exec_res = adapter.execute_approved_action(self.tool_name, self.action_name, self.arguments)
+            if isinstance(exec_res, dict):
+                output_txt = exec_res.get("details") or exec_res.get("output") or str(exec_res)
+            else:
+                output_txt = str(exec_res)
+        except Exception as e:
+            output_txt = f"Execution error: {e}"
+
+        # Transition card to Success state
+        self.setStyleSheet(
+            "QFrame { background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 12px; } "
+            "QLabel { border: none; background: transparent; }"
+        )
+        self.title_lbl.setText("✅ Approved by Human — Action Executed")
+        self.title_lbl.setStyleSheet("font-weight: 700; font-size: 13px; color: #15803D;")
+        self.timer_badge.setText("✅ Done")
+        self.timer_badge.setStyleSheet(
+            "background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; "
+            "font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 6px;"
+        )
+        self.status_lbl.setText(f"Authorized via {source} • Task completed successfully.")
+        self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #16A34A;")
+
+        self.approve_btn.setVisible(False)
+        self.reject_btn.setVisible(False)
+
+        out_lbl = QLabel(f"<b>Execution Result:</b>\n{output_txt}")
+        out_lbl.setStyleSheet("font-size: 12px; color: #15803D; background: #FFFFFF; border: 1px solid #BBF7D0; border-radius: 6px; padding: 6px 10px;")
+        out_lbl.setWordWrap(True)
+        self._layout.addWidget(out_lbl)
+
+    def _show_rejected(self, reason: str):
+        self.is_resolved = True
+        self._timer.stop()
+        self._anim_timer.stop()
+
+        self.setStyleSheet(
+            "QFrame { background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 12px; } "
+            "QLabel { border: none; background: transparent; }"
+        )
+        self.title_lbl.setText("🛑 Action Rejected — Execution Halted")
+        self.title_lbl.setStyleSheet("font-weight: 700; font-size: 13px; color: #B91C1C;")
+        self.timer_badge.setText("🛑 Blocked")
+        self.timer_badge.setStyleSheet(
+            "background: #FEE2E2; color: #B91C1C; border: 1px solid #FCA5A5; "
+            "font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 6px;"
+        )
+        self.status_lbl.setText(f"{reason} All files and systems kept safe.")
+        self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #DC2626;")
+
+        self.approve_btn.setVisible(False)
+        self.reject_btn.setVisible(False)
+
+    def _handle_timeout(self):
+        self.is_resolved = True
+        self._timer.stop()
+        self._anim_timer.stop()
+        resolve_approval_record(self.approval_id, "expired", "1-minute approval timer expired.")
+
+        self.setStyleSheet(
+            "QFrame { background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 12px; } "
+            "QLabel { border: none; background: transparent; }"
+        )
+        self.title_lbl.setText("⏱️ Approval Timed Out (1-min) — Action Rejected")
+        self.title_lbl.setStyleSheet("font-weight: 700; font-size: 13px; color: #B91C1C;")
+        self.timer_badge.setText("⏱️ Expired")
+        self.timer_badge.setStyleSheet(
+            "background: #FEE2E2; color: #B91C1C; border: 1px solid #FCA5A5; "
+            "font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 6px;"
+        )
+        self.status_lbl.setText("No human decision received within 60 seconds. Action automatically rejected to prevent unauthorized changes.")
+        self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #DC2626;")
+
+        self.approve_btn.setVisible(False)
+        self.reject_btn.setVisible(False)
+
+
 class ChatMessageBubble(QWidget):
     """ChatGPT-style conversation turn with clean typography and badge styling."""
 
@@ -213,6 +476,7 @@ class ChatMessageBubble(QWidget):
         text: str = "",
         attachment_name: str | None = None,
         security_event: dict | None = None,
+        approval_info: dict | None = None,
         is_thinking: bool = False,
         parent=None,
     ):
@@ -223,9 +487,9 @@ class ChatMessageBubble(QWidget):
         self._dot_count = 1
         self._content_box: QVBoxLayout | None = None
         self._msg_lbl: QLabel | None = None
-        self._setup_ui(text, attachment_name, security_event)
+        self._setup_ui(text, attachment_name, security_event, approval_info)
 
-    def _setup_ui(self, text: str, attachment_name: str | None, security_event: dict | None):
+    def _setup_ui(self, text: str, attachment_name: str | None, security_event: dict | None, approval_info: dict | None = None):
         is_user = self.sender == "user"
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 8, 0, 8)
@@ -302,7 +566,17 @@ class ChatMessageBubble(QWidget):
                 self._anim_timer.start()
             else:
                 self._apply_text_and_style(text)
-                if security_event:
+                if approval_info:
+                    self._content_box.addWidget(
+                        ApprovalPendingCard(
+                            approval_id=approval_info.get("approval_id", ""),
+                            tool_name=approval_info.get("tool_name", ""),
+                            action_name=approval_info.get("action_name", "execute"),
+                            arguments=approval_info.get("arguments", {}),
+                            expires_at=approval_info.get("expires_at"),
+                        )
+                    )
+                elif security_event:
                     self._content_box.addWidget(self._create_security_card(security_event))
 
             main_layout.addLayout(self._content_box)
@@ -326,7 +600,7 @@ class ChatMessageBubble(QWidget):
         else:
             self._msg_lbl.setStyleSheet("font-size: 14px; line-height: 1.6; color: #0D0D0D; letter-spacing: normal;")
 
-    def set_response(self, text: str, security_event: dict | None = None):
+    def set_response(self, text: str, security_event: dict | None = None, approval_info: dict | None = None):
         """Update animated thinking bubble with actual assistant response."""
         if self._anim_timer:
             self._anim_timer.stop()
@@ -336,7 +610,17 @@ class ChatMessageBubble(QWidget):
 
         self._apply_text_and_style(text)
 
-        if security_event and self._content_box:
+        if approval_info and self._content_box:
+            self._content_box.addWidget(
+                ApprovalPendingCard(
+                    approval_id=approval_info.get("approval_id", ""),
+                    tool_name=approval_info.get("tool_name", ""),
+                    action_name=approval_info.get("action_name", "execute"),
+                    arguments=approval_info.get("arguments", {}),
+                    expires_at=approval_info.get("expires_at"),
+                )
+            )
+        elif security_event and self._content_box:
             self._content_box.addWidget(self._create_security_card(security_event))
 
     def _create_security_card(self, security_event: dict) -> QFrame:
@@ -819,6 +1103,7 @@ class AgentChatbotWindow(QWidget):
         blocked = result.get("malicious_tool_blocked", False)
         executed = result.get("malicious_tool_executed", False)
         shield_active = result.get("agentshield_active", False)
+        pending_approval = result.get("pending_approval", False)
 
         sec_event = None
         if injection or blocked or executed:
@@ -829,11 +1114,21 @@ class AgentChatbotWindow(QWidget):
                 "injection": injection,
             }
 
+        approval_info = None
+        if pending_approval:
+            approval_info = {
+                "approval_id": result.get("approval_id"),
+                "tool_name": result.get("pending_tool"),
+                "action_name": result.get("pending_action", "execute"),
+                "arguments": result.get("pending_arguments", {}),
+                "expires_at": result.get("expires_at"),
+            }
+
         if self._active_thinking_bubble:
-            self._active_thinking_bubble.set_response(resp_text, security_event=sec_event)
+            self._active_thinking_bubble.set_response(resp_text, security_event=sec_event, approval_info=approval_info)
             self._active_thinking_bubble = None
         else:
-            self._append_bubble("agent", resp_text, security_event=sec_event)
+            self._append_bubble("agent", resp_text, security_event=sec_event, approval_info=approval_info)
 
         QTimer.singleShot(50, self._scroll_to_bottom)
 
@@ -858,6 +1153,7 @@ class AgentChatbotWindow(QWidget):
         text: str,
         attachment_name: str | None = None,
         security_event: dict | None = None,
+        approval_info: dict | None = None,
         is_thinking: bool = False,
     ) -> ChatMessageBubble:
         bubble = ChatMessageBubble(
@@ -865,6 +1161,7 @@ class AgentChatbotWindow(QWidget):
             text=text,
             attachment_name=attachment_name,
             security_event=security_event,
+            approval_info=approval_info,
             is_thinking=is_thinking,
         )
 

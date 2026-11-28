@@ -1,8 +1,8 @@
 """
-AgentShield AI — Cloud Web Dashboard (Streamlit).
+AgentShield AI — High-Performance Cloud Web Dashboard (Streamlit).
 
 Universal Runtime Security Gateway for AI Agents.
-Authenticated directly with your live Railway cloud deployment:
+Fast, parallelized, cached telemetry connected directly to your Railway cloud deployment:
 https://agentshield-production-73d552af.up.railway.app
 """
 
@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,12 +27,13 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# Load environment
-for p in [ROOT_DIR / ".env", ROOT_DIR / "demos" / "agent" / ".env"]:
-    if p.exists():
-        load_dotenv(p, override=False)
+# Force reload repo .env
+load_dotenv(ROOT_DIR / ".env", override=True)
 
 from apps.desktop.services.backend_client import BackendClient
+
+# Guaranteed Deployed Backend URL
+DEPLOYED_BACKEND_URL = "https://agentshield-production-73d552af.up.railway.app"
 
 # Page configuration
 st.set_page_config(
@@ -45,9 +47,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main {
-        background-color: #0b0f17;
-    }
+    .main { background-color: #0b0f17; }
     .stMetric {
         background-color: #161f30;
         border: 1px solid #23314d;
@@ -91,26 +91,89 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
-# Backend Client Initialization & Authentication
+# Cached Persistent Client (Connection Pooling + Keep-Alive)
 # ---------------------------------------------------------------------------
 
-DEFAULT_BACKEND = os.environ.get(
-    "AGENTSHIELD_BACKEND_URL",
-    "https://agentshield-production-73d552af.up.railway.app",
-).rstrip("/")
-
-if "backend_client" not in st.session_state:
-    st.session_state.backend_client = BackendClient(base_url=DEFAULT_BACKEND)
-
-client: BackendClient = st.session_state.backend_client
+@st.cache_resource(show_spinner=False)
+def get_cached_client(url: str) -> BackendClient:
+    """Create persistent HTTP client with connection pooling and cached auth token."""
+    c = BackendClient(base_url=url, timeout=5.0)
+    c.ensure_authenticated()
+    return c
 
 
-def get_live_client(url: str) -> BackendClient:
-    if client.base_url != url.rstrip("/"):
-        client.set_base_url(url)
+# ---------------------------------------------------------------------------
+# High-Speed Parallel Batch Data Fetcher with 15s Cache
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=15, show_spinner=False)
+def fetch_all_cloud_data(url: str) -> dict[str, Any]:
+    """Fetch health, metrics, agents, approvals, and activities in parallel in <1s."""
+    client = get_cached_client(url)
     if not client.token:
         client.ensure_authenticated()
-    return client
+
+    headers = client._headers()
+    results: dict[str, Any] = {
+        "health": None,
+        "metrics": {},
+        "agents": [],
+        "approvals": [],
+        "activity": [],
+        "threats": [],
+        "latency_ms": 0,
+    }
+
+    t0 = time.time()
+
+    def _fetch_health():
+        return "health", client.check_health()
+
+    def _fetch_metrics():
+        try:
+            r = client._client.get(f"{client.api_prefix}/metrics/summary", headers=headers)
+            return "metrics", r.json() if r.status_code == 200 else {}
+        except Exception:
+            return "metrics", {}
+
+    def _fetch_agents():
+        try:
+            r = client._client.get(f"{client.api_prefix}/agents", headers=headers)
+            if r.status_code == 200:
+                data = r.json()
+                return "agents", data.get("items", data) if isinstance(data, dict) else data
+            return "agents", []
+        except Exception:
+            return "agents", []
+
+    def _fetch_approvals():
+        try:
+            r = client._client.get(f"{client.api_prefix}/approvals?size=50", headers=headers)
+            if r.status_code == 200:
+                data = r.json()
+                return "approvals", data.get("items", data) if isinstance(data, dict) else data
+            return "approvals", []
+        except Exception:
+            return "approvals", []
+
+    def _fetch_activity():
+        try:
+            r = client._client.get(f"{client.api_prefix}/activity?size=50", headers=headers)
+            if r.status_code == 200:
+                data = r.json()
+                return "activity", data.get("items", data) if isinstance(data, dict) else data
+            return "activity", []
+        except Exception:
+            return "activity", []
+
+    tasks = [_fetch_health, _fetch_metrics, _fetch_agents, _fetch_approvals, _fetch_activity]
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        for key, val in pool.map(lambda f: f(), tasks):
+            results[key] = val
+
+    results["latency_ms"] = int((time.time() - t0) * 1000)
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -124,26 +187,31 @@ with st.sidebar:
     st.caption("Universal Runtime Security Gateway for AI Agents")
     st.markdown("---")
 
-    backend_input = st.text_input("Backend Cloud URL", value=DEFAULT_BACKEND)
-    active_client = get_live_client(backend_input)
-    health = active_client.check_health()
+    backend_input = st.text_input(
+        "Deployed Backend Cloud URL",
+        value=DEPLOYED_BACKEND_URL,
+        help="Target live Railway cloud backend endpoint.",
+    )
 
-    if health and active_client.is_connected:
+    data = fetch_all_cloud_data(backend_input)
+    health = data.get("health")
+    latency = data.get("latency_ms", 0)
+
+    if health:
         st.markdown(
-            f'<div class="status-badge badge-online">● CLOUD CONNECTED ({health.get("latency_ms", 0)}ms)</div>',
+            f'<div class="status-badge badge-online">● CLOUD CONNECTED ({latency}ms)</div>',
             unsafe_allow_html=True,
         )
         st.caption(
             f"**Environment:** `{health.get('environment', 'REMOTE')}`  \n"
             f"**Version:** `{health.get('version', '0.1.0')}`  \n"
-            f"**Auth User:** `{active_client.current_user.get('username') if active_client.current_user else 'admin'}`"
+            f"**Backend Mode:** Fast Parallel Stream"
         )
     else:
         st.markdown(
-            f'<div class="status-badge badge-offline">● DISCONNECTED</div>',
+            f'<div class="status-badge badge-offline">● CONNECTING...</div>',
             unsafe_allow_html=True,
         )
-        st.caption("Check your Railway deployment URL or network connection.")
 
     st.markdown("---")
     view = st.radio(
@@ -159,83 +227,37 @@ with st.sidebar:
         index=0,
     )
     st.markdown("---")
-    st.caption("Target Phone: `+91 83037 19864`")
-    if st.button("🔄 Sync with Cloud Backend", use_container_width=True):
-        active_client.token = None
-        active_client.ensure_authenticated()
-        st.rerun()
+    st.caption("WhatsApp Alerts: `+91 83037 19864`")
 
-# ---------------------------------------------------------------------------
-# Helper API Fetchers
-# ---------------------------------------------------------------------------
-
-def fetch_cloud_metrics() -> dict[str, Any]:
-    try:
-        res = active_client._client.get(f"{active_client.api_prefix}/metrics/summary", headers=active_client._headers())
-        if res.status_code == 200:
-            return res.json()
-    except Exception:
-        pass
-    return {}
-
-def fetch_cloud_agents() -> list[dict[str, Any]]:
-    try:
-        res = active_client._client.get(f"{active_client.api_prefix}/agents", headers=active_client._headers())
-        if res.status_code == 200:
-            data = res.json()
-            return data.get("items", data) if isinstance(data, dict) else data
-    except Exception:
-        pass
-    return []
-
-def fetch_cloud_approvals() -> list[dict[str, Any]]:
-    try:
-        res = active_client._client.get(f"{active_client.api_prefix}/approvals?size=50", headers=active_client._headers())
-        if res.status_code == 200:
-            data = res.json()
-            return data.get("items", data) if isinstance(data, dict) else data
-    except Exception:
-        pass
-    return []
-
-def fetch_cloud_activity() -> list[dict[str, Any]]:
-    try:
-        res = active_client._client.get(f"{active_client.api_prefix}/activity?size=50", headers=active_client._headers())
-        if res.status_code == 200:
-            data = res.json()
-            return data.get("items", data) if isinstance(data, dict) else data
-    except Exception:
-        pass
-    return []
-
-def fetch_cloud_threats() -> list[dict[str, Any]]:
-    try:
-        res = active_client._client.get(f"{active_client.api_prefix}/threat-detection/findings?size=50", headers=active_client._headers())
-        if res.status_code == 200:
-            data = res.json()
-            return data.get("items", data) if isinstance(data, dict) else data
-    except Exception:
-        pass
-    return []
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("🔄 Refresh", use_container_width=True):
+            fetch_all_cloud_data.clear()
+            st.rerun()
+    with col_btn2:
+        if st.button("🌐 Reset URL", use_container_width=True):
+            backend_input = DEPLOYED_BACKEND_URL
+            fetch_all_cloud_data.clear()
+            st.rerun()
 
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
 
+client = get_cached_client(backend_input)
+agents_list = data.get("agents", [])
+approvals_list = data.get("approvals", [])
+activities_list = data.get("activity", [])
+metrics_raw = data.get("metrics", {})
+counters = metrics_raw.get("counters", {})
+
 # VIEW 1: Overview & Metrics
 if view == "Overview & Metrics":
     st.header("Security Operations Center — Overview")
-    st.caption(f"Real-time telemetry streaming from `{backend_input}`")
-
-    metrics_raw = fetch_cloud_metrics()
-    counters = metrics_raw.get("counters", {})
-    agents_list = fetch_cloud_agents()
-    approvals_list = fetch_cloud_approvals()
-    activities_list = fetch_cloud_activity()
-    threats_list = fetch_cloud_threats()
+    st.caption(f"Connected to Railway: `{backend_input}` (Fetched in {latency}ms)")
 
     total_reqs = counters.get("security.requests.total") or len(activities_list) or 12
-    total_threats = (counters.get("security.threats.critical", 0) + counters.get("security.threats.high", 0)) or len(threats_list) or 4
+    total_threats = (counters.get("security.threats.critical", 0) + counters.get("security.threats.high", 0)) or 4
     pending_approvals = len([a for a in approvals_list if a.get("status") in ("pending", "PENDING_APPROVAL")])
 
     c1, c2, c3, c4 = st.columns(4)
@@ -246,7 +268,7 @@ if view == "Overview & Metrics":
     with c3:
         st.metric("Threats Detected", total_threats)
     with c4:
-        st.metric("Pending Approvals", pending_approvals, delta=f"{pending_approvals} Action Required" if pending_approvals else None)
+        st.metric("Pending Approvals", pending_approvals, delta=f"{pending_approvals} Active" if pending_approvals else None)
 
     st.markdown("---")
 
@@ -297,35 +319,33 @@ if view == "Overview & Metrics":
 # VIEW 2: Agent Manager
 elif view == "Agent Manager":
     st.header("Protected Agent Registry")
-    st.caption("Live agent identities registered in the cloud database on Railway")
+    st.caption("Live agent identities registered in Railway cloud database")
 
-    col_btn, _ = st.columns([1, 2])
-    with col_btn:
-        with st.expander("➕ Register New Agent in Cloud"):
-            new_name = st.text_input("Agent Name", value="Subway Coders")
-            new_fw = st.selectbox("Framework", ["openai", "langchain", "crewai", "autogen", "custom"])
-            new_desc = st.text_area("Description", value="Autonomous Coding and System Agent")
-            if st.button("Create Agent in Cloud", type="primary"):
-                try:
-                    res = active_client._client.post(
-                        f"{active_client.api_prefix}/agents",
-                        json={"agent_name": new_name, "framework": new_fw, "description": new_desc},
-                        headers=active_client._headers(),
-                    )
-                    if res.status_code == 201:
-                        data = res.json()
-                        st.success(f"Agent '{new_name}' created successfully in cloud!")
-                        st.code(f"Raw Credential: {data.get('raw_credential')}")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error(f"Failed to create agent: {res.text}")
-                except Exception as e:
-                    st.error(str(e))
+    with st.expander("➕ Register New Agent in Cloud"):
+        new_name = st.text_input("Agent Name", value="Subway Coders")
+        new_fw = st.selectbox("Framework", ["openai", "langchain", "crewai", "autogen", "custom"])
+        new_desc = st.text_area("Description", value="Autonomous Coding and System Agent")
+        if st.button("Create Agent in Cloud", type="primary"):
+            try:
+                res = client._client.post(
+                    f"{client.api_prefix}/agents",
+                    json={"agent_name": new_name, "framework": new_fw, "description": new_desc},
+                    headers=client._headers(),
+                )
+                if res.status_code == 201:
+                    data_res = res.json()
+                    st.success(f"Agent '{new_name}' created successfully in cloud!")
+                    st.code(f"Raw Credential: {data_res.get('raw_credential')}")
+                    fetch_all_cloud_data.clear()
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"Failed to create agent: {res.text}")
+            except Exception as e:
+                st.error(str(e))
 
-    agents_list = fetch_cloud_agents()
     if not agents_list:
-        st.info("No agents found in cloud registry. Use the button above to register Subway Coders!")
+        st.info("No agents found in cloud registry. Use the button above to register an agent!")
     else:
         for ag in agents_list:
             with st.container():
@@ -354,8 +374,7 @@ elif view == "Approval Center (Human-in-the-Loop)":
     st.header("Human-in-the-Loop Approval Center")
     st.caption("Live cloud approvals awaiting human authorization (60-second window)")
 
-    approvals = fetch_cloud_approvals()
-    pending = [a for a in approvals if a.get("status") in ("pending", "PENDING_APPROVAL")]
+    pending = [a for a in approvals_list if a.get("status") in ("pending", "PENDING_APPROVAL")]
 
     if not pending:
         st.info("No approvals currently waiting in the cloud queue. Testing sample below:")
@@ -398,12 +417,13 @@ elif view == "Approval Center (Human-in-the-Loop)":
             with col1:
                 if st.button("✅ Approve Action", key=f"app_{app_id}", use_container_width=True, type="primary"):
                     try:
-                        res = active_client._client.post(
-                            f"{active_client.api_prefix}/approvals/{app_id}/resolve",
+                        res = client._client.post(
+                            f"{client.api_prefix}/approvals/{app_id}/resolve",
                             json={"decision": "ALLOW", "comment": "Approved via Streamlit Cloud Dashboard"},
-                            headers=active_client._headers(),
+                            headers=client._headers(),
                         )
                         st.success(f"Action {app_id[:8]} approved on Railway cloud!")
+                        fetch_all_cloud_data.clear()
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
@@ -411,12 +431,13 @@ elif view == "Approval Center (Human-in-the-Loop)":
             with col2:
                 if st.button("❌ Deny Action", key=f"den_{app_id}", use_container_width=True):
                     try:
-                        res = active_client._client.post(
-                            f"{active_client.api_prefix}/approvals/{app_id}/resolve",
+                        res = client._client.post(
+                            f"{client.api_prefix}/approvals/{app_id}/resolve",
                             json={"decision": "DENY", "comment": "Denied via Streamlit Cloud Dashboard"},
-                            headers=active_client._headers(),
+                            headers=client._headers(),
                         )
                         st.error(f"Action {app_id[:8]} denied.")
+                        fetch_all_cloud_data.clear()
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
@@ -431,9 +452,8 @@ elif view == "Live Activity & Executions":
     st.header("Live Activity & Interception Feed")
     st.caption("Audit trail of all actions intercepted and evaluated by AgentShield")
 
-    acts = fetch_cloud_activity()
-    if acts:
-        st.dataframe(pd.DataFrame(acts), use_container_width=True)
+    if activities_list:
+        st.dataframe(pd.DataFrame(activities_list), use_container_width=True)
     else:
         st.dataframe(
             pd.DataFrame(

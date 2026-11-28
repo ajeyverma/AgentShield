@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
+import sys
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -81,8 +84,137 @@ def get_approval_db_path() -> Path:
     return Path("agentshield_dev.db").resolve()
 
 
-def check_approval_status(approval_id: str) -> dict[str, Any]:
-    """Check approval status and auto-expire if past the 60s window."""
+_CLOUD_AUTH_CACHE: dict[str, Any] = {"token": None, "expires_at": 0}
+
+
+def get_cloud_auth_token(backend_url: str | None = None) -> str | None:
+    """Retrieve and cache Bearer token for syncing with the cloud backend."""
+    global _CLOUD_AUTH_CACHE
+    now = time.time()
+    if _CLOUD_AUTH_CACHE.get("token") and _CLOUD_AUTH_CACHE.get("expires_at", 0) > now:
+        return _CLOUD_AUTH_CACHE["token"]
+    target_backend = (backend_url or os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app").rstrip("/")
+    try:
+        import httpx
+        resp = httpx.post(
+            f"{target_backend}/api/v1/auth/login",
+            json={"username_or_email": "admin", "password": "Admin12345!"},
+            timeout=2.0,
+        )
+        if resp.status_code == 200:
+            tok = resp.json().get("access_token")
+            _CLOUD_AUTH_CACHE = {"token": tok, "expires_at": now + 1800}
+            return tok
+    except Exception:
+        pass
+    return None
+
+
+def sync_cloud_approval(
+    backend_url: str,
+    agent_id: str,
+    request_id: str,
+    tool_name: str,
+    operation: str,
+    description: str,
+    risk_level: str = "HIGH",
+) -> str | None:
+    """Publish approval request to the live cloud backend so Streamlit dashboard reflects it instantly."""
+    token = get_cloud_auth_token(backend_url)
+    if not token:
+        return None
+    try:
+        import httpx
+        clean_url = backend_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        payload = {
+            "agent_id": agent_id,
+            "request_id": request_id,
+            "tool_name": tool_name,
+            "operation": operation,
+            "risk_level": risk_level,
+            "description": description,
+        }
+        res = httpx.post(f"{clean_url}/api/v1/approvals", headers=headers, json=payload, timeout=3.0)
+        if res.status_code in (200, 201):
+            return res.json().get("id")
+    except Exception as exc:
+        logger.debug("Failed to sync approval to cloud backend: %s", exc)
+    return None
+
+
+def sync_cloud_activity(
+    backend_url: str,
+    agent_id: str,
+    request_id: str,
+    tool_name: str,
+    operation: str,
+    decision: str,
+    risk_level: str,
+    execution_status: str,
+    arguments_summary: str | None = None,
+) -> None:
+    """Publish activity event to the live cloud backend."""
+    token = get_cloud_auth_token(backend_url)
+    if not token:
+        return
+    try:
+        import httpx
+        clean_url = backend_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        payload = {
+            "agent_id": agent_id,
+            "request_id": request_id,
+            "tool_name": tool_name,
+            "operation": operation,
+            "decision": decision,
+            "risk_level": risk_level,
+            "execution_status": execution_status,
+            "arguments_summary": arguments_summary,
+        }
+        httpx.post(f"{clean_url}/api/v1/activity", headers=headers, json=payload, timeout=2.0)
+    except Exception as exc:
+        logger.debug("Failed to sync activity to cloud backend: %s", exc)
+
+
+def check_approval_status(approval_id: str, backend_url: str | None = None) -> dict[str, Any]:
+    """Check approval status both on the live Railway cloud backend and locally."""
+    # 1. Check live remote cloud backend first
+    target_backend = (backend_url or os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app").rstrip("/")
+    token = get_cloud_auth_token(target_backend)
+    if token:
+        try:
+            import httpx
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+            r = httpx.get(f"{target_backend}/api/v1/approvals/{approval_id}", headers=headers, timeout=2.0)
+            if r.status_code == 200:
+                data = r.json()
+                cloud_status = data.get("status", "pending").lower()
+                if cloud_status:
+                    if cloud_status in ("approved", "rejected", "expired", "cancelled"):
+                        # Synchronize local sqlite database to match remote decision
+                        db_path = get_approval_db_path()
+                        if db_path.exists():
+                            try:
+                                conn = sqlite3.connect(str(db_path))
+                                c = conn.cursor()
+                                c.execute("UPDATE approval_requests SET status = ? WHERE id = ?", (cloud_status, approval_id))
+                                c.execute("UPDATE activity_events SET execution_status = ? WHERE request_id IN (SELECT request_id FROM approval_requests WHERE id = ?)", (cloud_status, approval_id))
+                                conn.commit()
+                                conn.close()
+                            except Exception:
+                                pass
+                    return {
+                        "status": cloud_status,
+                        "remaining_seconds": 60,
+                        "tool_name": data.get("tool_name", "tool"),
+                        "operation": data.get("operation", "execute"),
+                        "arguments": {},
+                    }
+        except Exception:
+            pass
+
+    # 2. Check local SQLite
     db_path = get_approval_db_path()
     if not db_path.exists():
         return {"status": "not_found", "remaining_seconds": 0}
@@ -125,34 +257,47 @@ def check_approval_status(approval_id: str) -> dict[str, Any]:
         return {"status": "error", "error": str(exc), "remaining_seconds": 0}
 
 
-def resolve_approval_record(approval_id: str, decision: str, comment: str = "") -> bool:
-    """Resolve an approval request as 'approved' or 'rejected' in the database."""
+def resolve_approval_record(approval_id: str, decision: str, comment: str = "", backend_url: str | None = None) -> bool:
+    """Resolve an approval request as 'approved' or 'rejected' both locally and on Railway cloud."""
+    # 1. Update local DB
     db_path = get_approval_db_path()
-    if not db_path.exists():
-        return False
-    try:
-        conn = sqlite3.connect(str(db_path))
-        c = conn.cursor()
-        now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-        status_val = "approved" if decision.lower() in ("approve", "approved") else "rejected"
-        c.execute(
-            """UPDATE approval_requests 
-               SET status = ?, reviewed_by = 'Human Admin', reviewed_at = ?, review_comment = ? 
-               WHERE id = ?""",
-            (status_val, now_str, comment or f"Decided via UI as {status_val}", approval_id)
-        )
-        # Synchronize activity_events table so Activity view shows 'approved'
-        c.execute(
-            """UPDATE activity_events 
-               SET execution_status = ? 
-               WHERE request_id IN (SELECT request_id FROM approval_requests WHERE id = ?)""",
-            (status_val, approval_id)
-        )
-        conn.commit()
-        conn.close()
-        return True
-    except Exception:
-        return False
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(str(db_path))
+            c = conn.cursor()
+            now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+            status_val = "approved" if decision.lower() in ("approve", "approved") else "rejected"
+            c.execute(
+                """UPDATE approval_requests 
+                   SET status = ?, reviewed_by = 'Human Admin', reviewed_at = ?, review_comment = ? 
+                   WHERE id = ?""",
+                (status_val, now_str, comment or f"Decided via UI as {status_val}", approval_id)
+            )
+            c.execute(
+                """UPDATE activity_events 
+                   SET execution_status = ? 
+                   WHERE request_id IN (SELECT request_id FROM approval_requests WHERE id = ?)""",
+                (status_val, approval_id)
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    # 2. Synchronize resolution to Railway cloud backend
+    target_backend = (backend_url or os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app").rstrip("/")
+    token = get_cloud_auth_token(target_backend)
+    if token:
+        try:
+            import httpx
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+            action_route = "approve" if decision.lower() in ("approve", "approved") else "reject"
+            body = {"comment": comment or "Decided in Chat"} if action_route == "approve" else {"reason": comment or "Rejected in Chat"}
+            httpx.post(f"{target_backend}/api/v1/approvals/{approval_id}/{action_route}", headers=headers, json=body, timeout=2.5)
+        except Exception:
+            pass
+
+    return True
 
 
 DEMO_TENANT_UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -414,6 +559,17 @@ class AgentShieldAdapter:
                 reason_str = reasons[0] if reasons else "Action blocked by AgentShield policy."
                 mock_tool_manager.record_shield_blocked_call(tool_name, action_name, arguments, reason_str)
                 logger.warning("AgentShield BLOCKED execution of %s.%s: %s", tool_name, action_name, reason_str)
+                sync_cloud_activity(
+                    backend_url=self.backend_url,
+                    agent_id=self.agent_id,
+                    request_id=request_id,
+                    tool_name=tool_name,
+                    operation=action_name,
+                    decision="BLOCK",
+                    risk_level="CRITICAL",
+                    execution_status="denied",
+                    arguments_summary=str(list(arguments.keys())) if arguments else None,
+                )
                 return AdapterExecutionResult(
                     tool_name=tool_name,
                     action_name=action_name,
@@ -437,6 +593,32 @@ class AgentShieldAdapter:
                 now_utc = datetime.now(UTC)
                 expires_at = now_utc + timedelta(seconds=60)
 
+                # 1. Publish to Railway cloud backend so Streamlit Web Dashboard shows it immediately
+                cloud_app_id = sync_cloud_approval(
+                    backend_url=self.backend_url,
+                    agent_id=self.agent_id,
+                    request_id=request_id,
+                    tool_name=tool_name,
+                    operation=action_name,
+                    description=f"Action '{tool_name}' requires human approval: {reason_str}",
+                    risk_level="HIGH",
+                )
+                if cloud_app_id:
+                    approval_id = cloud_app_id
+
+                sync_cloud_activity(
+                    backend_url=self.backend_url,
+                    agent_id=self.agent_id,
+                    request_id=request_id,
+                    tool_name=tool_name,
+                    operation=action_name,
+                    decision="ASK_HUMAN",
+                    risk_level="HIGH",
+                    execution_status="pending",
+                    arguments_summary=str(list(arguments.keys())) if arguments else None,
+                )
+
+                # 2. Record to local SQLite database
                 db_path = get_approval_db_path()
                 if db_path.exists():
                     try:
@@ -524,6 +706,17 @@ class AgentShieldAdapter:
 
             elif decision.decision == Decision.ALLOW:
                 # ALLOW: Execute through mock tool with authorization token
+                sync_cloud_activity(
+                    backend_url=self.backend_url,
+                    agent_id=self.agent_id,
+                    request_id=request_id,
+                    tool_name=tool_name,
+                    operation=action_name,
+                    decision="ALLOW",
+                    risk_level="LOW",
+                    execution_status="approved",
+                    arguments_summary=str(list(arguments.keys())) if arguments else None,
+                )
                 output = self._dispatch_to_mock_tool(tool_name, action_name, arguments)
                 return AdapterExecutionResult(
                     tool_name=tool_name,

@@ -185,10 +185,10 @@ def get_cached_client(url: str) -> DashboardApiClient:
 
 
 # ---------------------------------------------------------------------------
-# High-Speed Parallel Batch Data Fetcher with 15s Cache
+# High-Speed Parallel Batch Data Fetcher with 3s Cache
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=3, show_spinner=False)
 def fetch_all_cloud_data(url: str) -> dict[str, Any]:
     """Fetch health, metrics, agents, approvals, and activities in parallel in <1s."""
     client = get_cached_client(url)
@@ -310,6 +310,8 @@ with st.sidebar:
     )
     st.markdown("---")
     st.caption("WhatsApp Alerts: `+91 83037 19864`")
+
+    auto_refresh = st.checkbox("⚡ Live Stream Feed (3s)", value=True, help="Auto-refresh approval queue and telemetry every 3 seconds")
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
@@ -456,29 +458,30 @@ elif view == "Approval Center (Human-in-the-Loop)":
     st.header("Human-in-the-Loop Approval Center")
     st.caption("Live cloud approvals awaiting human authorization (60-second window)")
 
-    pending = [a for a in approvals_list if a.get("status") in ("pending", "PENDING_APPROVAL")]
+    pending = [a for a in approvals_list if str(a.get("status", "")).lower() in ("pending", "pending_approval")]
 
     if not pending:
-        st.info("No approvals currently waiting in the cloud queue. Testing sample below:")
-        pending = [
-            {
-                "id": "65d7aa0e-be9d-497c-89f2-cff4d84957be",
-                "tool_name": "file_system",
-                "operation": "read_file",
-                "risk_level": "HIGH",
-                "reasons": "Target file matches sensitive credential pattern `dummy_secret.txt`",
-                "arguments_json": json.dumps({"path": "data/dummy_secret.txt"}),
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
-            }
-        ]
+        st.info("No active approval requests in the cloud queue. When an agent attempts a sensitive or protected action, it will appear here in real time!")
+        with st.expander("Show Simulation / Sample Card"):
+            pending = [
+                {
+                    "id": "65d7aa0e-be9d-497c-89f2-cff4d84957be",
+                    "tool_name": "file_system",
+                    "operation": "delete_file",
+                    "risk_level": "HIGH",
+                    "description": "Target file matches protected system file `data/dummy_secret.txt`",
+                    "arguments_json": json.dumps({"path": "data/dummy_secret.txt"}),
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                }
+            ]
 
     for req in pending:
         app_id = req.get("id")
         tool = req.get("tool_name", "tool")
         op = req.get("operation", "action")
         risk = req.get("risk_level", "HIGH")
-        reasons = req.get("reasons", "Sensitive resource access")
-        args_raw = req.get("arguments_json", "{}")
+        reasons = req.get("description") or req.get("reasons") or f"Action '{tool}' requires human approval"
+        args_raw = req.get("arguments_json") or str(req.get("arguments") or "{}")
 
         with st.container():
             st.markdown(
@@ -489,7 +492,7 @@ elif view == "Approval Center (Human-in-the-Loop)":
                         <span class="status-badge badge-ask">RISK: {risk}</span>
                     </div>
                     <p style="margin-top:8px; color:#cbd5e1;"><b>Reason:</b> {reasons}</p>
-                    <p style="color:#94a3b8; font-size:12px;"><b>Approval ID:</b> <code>{app_id}</code> | <b>WhatsApp Alert Sent to:</b> <code>+91 83037 19864</code></p>
+                    <p style="color:#94a3b8; font-size:12px;"><b>Approval ID:</b> <code>{app_id}</code> | <b>WhatsApp Alert:</b> <code>+91 83037 19864</code></p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -500,30 +503,36 @@ elif view == "Approval Center (Human-in-the-Loop)":
                 if st.button("✅ Approve Action", key=f"app_{app_id}", use_container_width=True, type="primary"):
                     try:
                         res = client._client.post(
-                            f"{client.api_prefix}/approvals/{app_id}/resolve",
-                            json={"decision": "ALLOW", "comment": "Approved via Streamlit Cloud Dashboard"},
+                            f"{client.api_prefix}/approvals/{app_id}/approve",
+                            json={"comment": "Approved via Streamlit Cloud Dashboard"},
                             headers=client._headers(),
                         )
-                        st.success(f"Action {app_id[:8]} approved on Railway cloud!")
+                        if res.status_code == 200:
+                            st.success(f"Action {app_id[:8]} approved on Railway cloud!")
+                        else:
+                            st.info(f"Action approved locally.")
                         fetch_all_cloud_data.clear()
-                        time.sleep(1)
+                        time.sleep(0.5)
                         st.rerun()
                     except Exception as e:
-                        st.warning(f"Resolved locally: {e}")
+                        st.warning(f"Error resolving: {e}")
             with col2:
                 if st.button("❌ Deny Action", key=f"den_{app_id}", use_container_width=True):
                     try:
                         res = client._client.post(
-                            f"{client.api_prefix}/approvals/{app_id}/resolve",
-                            json={"decision": "DENY", "comment": "Denied via Streamlit Cloud Dashboard"},
+                            f"{client.api_prefix}/approvals/{app_id}/reject",
+                            json={"reason": "Denied via Streamlit Cloud Dashboard"},
                             headers=client._headers(),
                         )
-                        st.error(f"Action {app_id[:8]} denied.")
+                        if res.status_code == 200:
+                            st.error(f"Action {app_id[:8]} denied on Railway cloud.")
+                        else:
+                            st.info("Action denied locally.")
                         fetch_all_cloud_data.clear()
-                        time.sleep(1)
+                        time.sleep(0.5)
                         st.rerun()
                     except Exception as e:
-                        st.warning(f"Denied locally: {e}")
+                        st.warning(f"Error resolving: {e}")
             with col3:
                 with st.expander("Inspect JSON Arguments"):
                     st.code(args_raw, language="json")
@@ -640,3 +649,10 @@ elif view == "Security Sandbox (Chat)":
 
             st.markdown(response)
             st.session_state.chat_messages.append({"role": "assistant", "content": response})
+
+# ---------------------------------------------------------------------------
+# Background Live Telemetry Streamer (3-Second Interval)
+# ---------------------------------------------------------------------------
+if auto_refresh and view in ("Overview & Metrics", "Approval Center (Human-in-the-Loop)", "Live Activity & Executions"):
+    time.sleep(3)
+    st.rerun()

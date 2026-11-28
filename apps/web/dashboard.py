@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -27,10 +28,10 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# Force reload repo .env
-load_dotenv(ROOT_DIR / ".env", override=True)
-
-from apps.desktop.services.backend_client import BackendClient
+# Force reload repo .env if present
+env_file = ROOT_DIR / ".env"
+if env_file.exists():
+    load_dotenv(env_file, override=True)
 
 # Guaranteed Deployed Backend URL
 DEPLOYED_BACKEND_URL = "https://agentshield-production-73d552af.up.railway.app"
@@ -91,13 +92,94 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
+# Self-Contained Resilient HTTP Client for Cloud Streamlit
+# ---------------------------------------------------------------------------
+
+class DashboardApiClient:
+    """Lightweight, zero-external-dependency HTTP client for AgentShield Cloud Dashboard."""
+
+    def __init__(self, base_url: str, timeout: float = 6.0) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_prefix = "/api/v1"
+        self.timeout = timeout
+        self.token: str | None = None
+        self.current_user: dict[str, Any] | None = None
+        self._connected: bool = False
+        self._client = httpx.Client(
+            base_url=self.base_url,
+            timeout=self.timeout,
+            headers={"Accept": "application/json"},
+        )
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def _headers(self) -> dict[str, str]:
+        headers = {"Accept": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers
+
+    def ensure_authenticated(self) -> bool:
+        if self.token:
+            return True
+        if self.login("admin", "Admin12345!"):
+            return True
+        self.register("admin@agentshield.io", "admin", "Admin12345!")
+        return self.login("admin", "Admin12345!")
+
+    def check_health(self) -> dict[str, Any] | None:
+        try:
+            resp = self._client.get(f"{self.api_prefix}/health")
+            if resp.status_code == 200:
+                self._connected = True
+                data = resp.json()
+                data["latency_ms"] = round(resp.elapsed.total_seconds() * 1000)
+                return data
+            self._connected = False
+            return None
+        except Exception:
+            self._connected = False
+            return None
+
+    def login(self, username_or_email: str, password: str) -> bool:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/auth/login",
+                json={"username_or_email": username_or_email, "password": password},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                self.token = data.get("access_token")
+                self.current_user = data.get("user")
+                self._connected = True
+                return True
+            return False
+        except Exception:
+            return False
+
+    def register(self, email: str, username: str, password: str) -> dict[str, Any] | None:
+        try:
+            resp = self._client.post(
+                f"{self.api_prefix}/auth/register",
+                json={"email": email, "username": username, "password": password},
+            )
+            if resp.status_code == 201:
+                return resp.json()
+            return None
+        except Exception:
+            return None
+
+
+# ---------------------------------------------------------------------------
 # Cached Persistent Client (Connection Pooling + Keep-Alive)
 # ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner=False)
-def get_cached_client(url: str) -> BackendClient:
+def get_cached_client(url: str) -> DashboardApiClient:
     """Create persistent HTTP client with connection pooling and cached auth token."""
-    c = BackendClient(base_url=url, timeout=5.0)
+    c = DashboardApiClient(base_url=url, timeout=6.0)
     c.ensure_authenticated()
     return c
 

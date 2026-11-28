@@ -483,6 +483,23 @@ class AgentShieldAdapter:
                     except Exception as exc:
                         logger.warning("Failed to insert approval_request: %s", exc)
 
+                # Dispatch real-time WhatsApp alert with full approval section metadata
+                try:
+                    from agentshield.services.notification_service import notification_service
+                    target_res = str(arguments.get("path") or arguments.get("command") or arguments)
+                    notification_service.send_approval_alert_sync(
+                        approval_id=approval_id,
+                        tool_name=tool_name,
+                        operation=action_name,
+                        reasons=reasons,
+                        risk_level="HIGH",
+                        resource=target_res,
+                        arguments=arguments,
+                        expires_at=expires_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                    )
+                except Exception as notify_err:
+                    logger.warning("Failed to dispatch WhatsApp alert from adapter: %s", notify_err)
+
                 return AdapterExecutionResult(
                     tool_name=tool_name,
                     action_name=action_name,

@@ -171,10 +171,10 @@ class ChatWorker(QObject):
             )
 
             # 3. Run Autonomous Agent:
-            adapter = AgentShieldAdapter(use_live_backend=True) if agentshield_running else None
+            adapter = AgentShieldAdapter(use_live_backend=agentshield_running)
             agent = PoisonedWebpageDemoAgent(
                 adapter=adapter,
-                firewall_on=agentshield_running,
+                firewall_on=True,
                 use_mock_model=(self.llm_provider == "simulated"),
                 llm_provider=self.llm_provider,
                 model_name=self.model_name,
@@ -185,7 +185,7 @@ class ChatWorker(QObject):
 
             result = {
                 "final_response": ctx.final_response,
-                "agentshield_active": agentshield_running,
+                "agentshield_active": True,
                 "injection_detected": ctx.injection_detected,
                 "malicious_tool_attempted": ctx.malicious_tool_attempted,
                 "malicious_tool_blocked": ctx.malicious_tool_blocked,

@@ -179,14 +179,13 @@ class MainWindow(QMainWindow):
         """Start a periodic health check that runs on a background worker thread."""
         self._health_signals = HealthSignals()
         self._health_signals.health_result.connect(self._on_health_result)
+        self._is_connected = False
 
-        # Check immediately
+        # Fast initial check: poll every 1 second until connected, then every 5 seconds
         self._trigger_health_check()
-
-        # Check periodically every 15 seconds
         self._health_timer = QTimer(self)
         self._health_timer.timeout.connect(self._trigger_health_check)
-        self._health_timer.start(15000)
+        self._health_timer.start(1000)
 
     def _trigger_health_check(self) -> None:
         task = HealthCheckTask(self._health_signals)
@@ -194,9 +193,28 @@ class MainWindow(QMainWindow):
 
     def _on_health_result(self, is_alive: bool) -> None:
         """Slot invoked on Qt main thread when background health check finishes."""
+        was_connected = getattr(self, "_is_connected", False)
+        self._is_connected = is_alive
+
         self._header.set_connected(is_alive)
         self._update_status_bar(is_alive)
         logger.debug("Backend health check completed: connected=%s", is_alive)
+
+        # Transition handling
+        if is_alive:
+            if not was_connected:
+                # Just transitioned to connected: slow polling down to 5s
+                self._health_timer.setInterval(5000)
+                # Auto-refresh active view so data loads immediately
+                current_view = self._stack.currentWidget()
+                if current_view and hasattr(current_view, "refresh_data"):
+                    try:
+                        current_view.refresh_data()
+                    except Exception as exc:
+                        logger.warning("Failed to refresh active view on connect: %s", exc)
+        else:
+            # When disconnected, poll every 2s to catch reconnection quickly
+            self._health_timer.setInterval(2000)
 
     # ── Navigation ───────────────────────────────────────────────────────────
 

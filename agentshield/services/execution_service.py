@@ -291,6 +291,21 @@ class ExecutionService:
             self.session.add(approval)
             await self.session.commit()
 
+            # Dispatch real-time WhatsApp alert via Twilio
+            try:
+                from agentshield.services.notification_service import notification_service
+                pin = str(abs(hash(str(approval_id))) % 900000 + 100000)
+                notification_service.send_approval_alert_sync(
+                    approval_id=str(approval_id),
+                    tool_name=request.tool_name,
+                    operation=request.action_name or "execute",
+                    reasons=[r.description if hasattr(r, "description") else str(r) for r in decision.reasons] if hasattr(decision, "reasons") else ["Execution requires approval"],
+                    risk_level=decision.risk_level.value if hasattr(decision.risk_level, "value") else str(decision.risk_level),
+                    pin_code=pin,
+                )
+            except Exception as notify_err:
+                logger.warning("Failed to dispatch WhatsApp alert from execution service: %s", notify_err)
+
             from agentshield.security.sanitization import redact_secrets
             await broadcaster.broadcast_event(
                 user_id,

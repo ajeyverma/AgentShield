@@ -196,26 +196,36 @@ class UnifiedLLMClient:
         """Execute reasoning with OpenRouter API (OpenAI-compatible)."""
         import openai
 
+        clean_key = (api_key or "").strip()
+        if not clean_key:
+            raise ValueError("OpenRouter API Key is empty. Please enter a valid OpenRouter API key.")
+
         client = openai.OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
+            api_key=clean_key,
+            timeout=45.0,
+            max_retries=2,
             default_headers={
                 "HTTP-Referer": "https://github.com/AgentShield-AI",
                 "X-Title": "AgentShield AI Demo",
             },
         )
 
-        resp = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_prompt},
-            ],
-            tools=TOOL_DEFINITIONS_OPENAI,
-            tool_choice="auto",
-            temperature=0.1,
-            max_tokens=2048,
-        )
+        try:
+            resp = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_prompt},
+                ],
+                tools=TOOL_DEFINITIONS_OPENAI,
+                tool_choice="auto",
+                temperature=0.1,
+                max_tokens=2048,
+            )
+        except Exception as exc:
+            logger.error("OpenRouter API error: %s", exc)
+            raise RuntimeError(f"OpenRouter API error: {exc}. Please verify your API Key and network connection.") from exc
 
         choice = resp.choices[0].message
         tool_calls: list[LLMToolCall] = []

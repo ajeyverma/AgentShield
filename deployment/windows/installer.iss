@@ -36,6 +36,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\..\dist\AgentShield\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\dist\AgentShield\.env"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\dist\AgentShield\demos\agent\.env"; DestDir: "{app}\demos\agent"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\..\apps\desktop\assets\icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 
 [Icons]

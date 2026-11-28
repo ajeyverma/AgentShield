@@ -551,4 +551,20 @@ class ApprovalService:
         await self.session.flush()
         await self.session.refresh(approval)
         await self.session.commit()
+
+        # Dispatch real-time WhatsApp alert via Twilio
+        try:
+            from agentshield.services.notification_service import notification_service
+            pin = str(abs(hash(str(approval.id))) % 900000 + 100000)
+            notification_service.send_approval_alert_sync(
+                approval_id=str(approval.id),
+                tool_name=approval.tool_name,
+                operation=approval.operation or "execute",
+                reasons=[approval.description] if approval.description else ["Action requires human approval"],
+                risk_level=str(approval.risk_level),
+                pin_code=pin,
+            )
+        except Exception as notify_err:
+            logger.warning("Failed to dispatch WhatsApp alert from approval service: %s", notify_err)
+
         return ApprovalResponse.model_validate(approval)

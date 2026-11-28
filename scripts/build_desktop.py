@@ -67,6 +67,17 @@ def build_desktop():
         print(f"Error: Target executable {built_exe} was not produced!")
         sys.exit(1)
 
+    # 5b. Guarantee all environment files are directly bundled in distribution
+    if (root / ".env").exists():
+        shutil.copy2(root / ".env", dist_dir / ".env")
+        print("Copied root .env to distribution root.")
+    agent_env = root / "demos" / "agent" / ".env"
+    if agent_env.exists():
+        target_agent_dir = dist_dir / "demos" / "agent"
+        target_agent_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(agent_env, target_agent_dir / ".env")
+        print("Copied demos/agent/.env to distribution.")
+
     # 6. Generate Checksums
     checksum = compute_sha256(built_exe)
     with open(checksums_file, "w", encoding="utf-8") as f:

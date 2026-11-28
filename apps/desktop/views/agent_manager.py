@@ -1,5 +1,10 @@
 """Agent Manager view — Phase 2 demo data only."""
 from __future__ import annotations
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton,
@@ -16,6 +21,68 @@ from apps.desktop.components.icons        import get_pixmap, get_icon
 from apps.desktop.services.backend_client import backend_client
 from apps.desktop.utils import to_ist_str
 from apps.desktop.views.demo_runner_dialog import DemoAgentRunnerDialog
+
+_GLOBAL_CHAT_INSTANCES: list[Any] = []
+
+
+def launch_agent_chatbot(agent_name: str = "Subway Coders", parent: QWidget | None = None) -> None:
+    """Launch the Subway Coders AI Agent chatbot UI.
+    
+    Tries launching as an independent subprocess first (giving it its own
+    process lifecycle, taskbar icon, and event loop). Falls back to an in-process
+    window if needed.
+    """
+    import logging
+    logger = logging.getLogger("agentshield.desktop.agent_manager")
+    logger.info("launch_agent_chatbot invoked for: %s", agent_name)
+
+    repo_root = Path(__file__).resolve().parents[3]
+    script_path = repo_root / "demos" / "agent" / "chatbot_ui.py"
+    if not script_path.exists():
+        script_path = Path.cwd() / "demos" / "agent" / "chatbot_ui.py"
+
+    is_frozen = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+    launched = False
+    err_detail = ""
+
+    # Strategy 1: Subprocess launch
+    try:
+        if is_frozen:
+            # Standalone compiled AgentShield executable
+            subprocess.Popen([sys.executable, "--chatbot"])
+            launched = True
+        elif script_path.exists():
+            # In Python environment, run python demos/agent/chatbot_ui.py
+            env = os.environ.copy()
+            curr_pp = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{curr_pp}"
+            subprocess.Popen([sys.executable, str(script_path)], cwd=str(repo_root), env=env)
+            launched = True
+    except Exception as exc:
+        err_detail = str(exc)
+        logger.warning("Subprocess launch failed: %s", exc)
+
+    # Strategy 2: In-process fallback
+    if not launched:
+        try:
+            if str(repo_root) not in sys.path:
+                sys.path.insert(0, str(repo_root))
+            from demos.agent.chatbot_ui import AgentChatbotWindow
+            win = AgentChatbotWindow()
+            win.setWindowFlags(Qt.WindowType.Window)
+            win.show()
+            win.raise_()
+            win.activateWindow()
+            _GLOBAL_CHAT_INSTANCES.append(win)
+            launched = True
+        except Exception as exc:
+            logger.exception("In-process AgentChatbotWindow launch failed: %s", exc)
+            msg_box = QMessageBox(parent)
+            msg_box.setIcon(QMessageBox.Icon.Critical)
+            msg_box.setWindowTitle("Failed to Launch Agent")
+            msg_box.setText(f"Could not open agent chatbot ({agent_name}).")
+            msg_box.setInformativeText(f"Error details:\n{exc}\n\nSubprocess error:\n{err_detail}")
+            msg_box.exec()
 
 
 @dataclass
@@ -135,12 +202,7 @@ def _detail_dialog(agent: AgentRecord, parent) -> None:
     )
     def _launch_from_details():
         dlg.accept()
-        if parent and hasattr(parent, "_open_chatbot"):
-            parent._open_chatbot(agent.name)
-        else:
-            from demos.agent.chatbot_ui import AgentChatbotWindow
-            w = AgentChatbotWindow()
-            w.show()
+        launch_agent_chatbot(agent.name, parent)
     run_agent_btn.clicked.connect(_launch_from_details)
     btn_row.addWidget(run_agent_btn)
 
@@ -438,14 +500,7 @@ class AgentManagerView(QWidget):
         self.refresh_data()
 
     def _open_chatbot(self, agent_name: str = "Subway Coders"):
-        from demos.agent.chatbot_ui import AgentChatbotWindow
-        win = AgentChatbotWindow()
-        win.show()
-        win.raise_()
-        win.activateWindow()
-        if not hasattr(self, "_chat_instances"):
-            self._chat_instances = []
-        self._chat_instances.append(win)
+        launch_agent_chatbot(agent_name, self)
 
     def _render_agents(self, agents: list[AgentRecord]):
         # Clear existing cards (preserve stretch at end)

@@ -19,8 +19,12 @@ datas = [
     (str(project_root / "config"), "config"),
     (str(project_root / "demos" / "agent" / "data"), "demos/agent/data"),
 ]
+if (project_root / ".env").exists():
+    datas.append((str(project_root / ".env"), "."))
 if (project_root / "demos" / "agent" / ".env").exists():
     datas.append((str(project_root / "demos" / "agent" / ".env"), "demos/agent"))
+if (project_root / "demos" / "agent" / "subway_coders_circle.png").exists():
+    datas.append((str(project_root / "demos" / "agent" / "subway_coders_circle.png"), "demos/agent"))
 if (project_root / "agentshield_dev.db").exists():
     datas.append((str(project_root / "agentshield_dev.db"), "."))
 
@@ -29,6 +33,10 @@ hiddenimports = (
     collect_submodules("agentshield")
     + collect_submodules("demos.agent")
     + collect_submodules("apps.desktop")
+    + collect_submodules("apps.api")
+    + collect_submodules("uvicorn")
+    + collect_submodules("fastapi")
+    + collect_submodules("starlette")
     + collect_submodules("sqlalchemy")
     + [
         "PySide6.QtCore",
@@ -43,6 +51,10 @@ hiddenimports = (
         "uuid",
         "json",
         "logging",
+        "asyncio",
+        "websockets",
+        "multipart",
+        "email_validator",
     ]
 )
 

@@ -158,6 +158,27 @@ class AgentShieldSettings(BaseSettings):
     )
 
     # ------------------------------------------------------------------
+    # WhatsApp / Twilio Notifications
+    # ------------------------------------------------------------------
+
+    twilio_account_sid: str = Field(
+        default="",
+        description="Twilio Account SID for WhatsApp alerts.",
+    )
+    twilio_auth_token: str = Field(
+        default="",
+        description="Twilio Auth Token for WhatsApp alerts.",
+    )
+    twilio_whatsapp_from: str = Field(
+        default="whatsapp:+14155238886",
+        description="Twilio WhatsApp sender phone (e.g. sandbox number).",
+    )
+    twilio_whatsapp_to: str = Field(
+        default="whatsapp:+916393121212",
+        description="Recipient phone number for WhatsApp approval alerts.",
+    )
+
+    # ------------------------------------------------------------------
     # Version info (read-only)
     # ------------------------------------------------------------------
 
@@ -201,13 +222,16 @@ class AgentShieldSettings(BaseSettings):
 
     @property
     def effective_database_url(self) -> str:
-        """Return the database URL to use, falling back to SQLite for local mode."""
-        if self.database_url:
-            return self.database_url
-        if self.env == DeploymentMode.REMOTE:
-            raise RuntimeError(
-                "AGENTSHIELD_DATABASE_URL must be configured for REMOTE deployments."
-            )
+        """Return the database URL to use, normalizing postgres to asyncpg and falling back safely."""
+        import os
+        raw = self.database_url or os.getenv("DATABASE_URL") or os.getenv("AGENTSHIELD_DATABASE_URL")
+        if raw and raw.strip():
+            url = raw.strip()
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif url.startswith("postgresql://") and "+asyncpg" not in url:
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return url
         return self.sqlite_url
 
     @property

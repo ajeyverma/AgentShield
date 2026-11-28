@@ -205,6 +205,23 @@ class SecurityService:
             await broadcaster.broadcast_event(user_id, "security.action.blocked", event_payload)
         elif decision.decision == Decision.ASK_HUMAN:
             await broadcaster.broadcast_event(user_id, "security.approval.required", event_payload)
+            # Dispatch WhatsApp approval alert via Twilio asynchronously
+            try:
+                import asyncio
+                from agentshield.services.notification_service import notification_service
+                pin_code = str(abs(hash(str(decision.approval_id))) % 900000 + 100000)
+                asyncio.create_task(
+                    notification_service.send_approval_alert(
+                        approval_id=str(decision.approval_id),
+                        tool_name=request.tool_name,
+                        operation=request.operation or "execute",
+                        reasons=decision.reasons,
+                        risk_level=decision.risk_level.value if hasattr(decision.risk_level, "value") else str(decision.risk_level),
+                        pin_code=pin_code,
+                    )
+                )
+            except Exception as notify_err:
+                logger.warning("Failed to dispatch WhatsApp approval notification: %s", notify_err)
 
         # Broadcast Threat Events
         for tf in threat_result.findings:

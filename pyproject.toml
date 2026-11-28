@@ -56,6 +56,14 @@ desktop = [
     "structlog>=24.0,<25.0",
 ]
 
+# Web Dashboard (Streamlit)
+web = [
+    "streamlit>=1.30.0",
+    "plotly>=5.20.0",
+    "pandas>=2.0.0",
+    "httpx>=0.27,<1.0",
+]
+
 # Development tooling
 dev = [
     "pytest>=8.0,<9.0",

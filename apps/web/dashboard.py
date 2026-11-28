@@ -459,83 +459,91 @@ elif view == "Approval Center (Human-in-the-Loop)":
     st.caption("Live cloud approvals awaiting human authorization (60-second window)")
 
     pending = [a for a in approvals_list if str(a.get("status", "")).lower() in ("pending", "pending_approval")]
+    resolved = [a for a in approvals_list if str(a.get("status", "")).lower() in ("approved", "rejected", "expired", "denied")]
 
     if not pending:
         st.info("No active approval requests in the cloud queue. When an agent attempts a sensitive or protected action, it will appear here in real time!")
-        with st.expander("Show Simulation / Sample Card"):
-            pending = [
-                {
-                    "id": "65d7aa0e-be9d-497c-89f2-cff4d84957be",
-                    "tool_name": "file_system",
-                    "operation": "delete_file",
-                    "risk_level": "HIGH",
-                    "description": "Target file matches protected system file `data/dummy_secret.txt`",
-                    "arguments_json": json.dumps({"path": "data/dummy_secret.txt"}),
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
-                }
-            ]
+    else:
+        for req in pending:
+            app_id = req.get("id")
+            tool = req.get("tool_name", "tool")
+            op = req.get("operation", "action")
+            risk = req.get("risk_level", "HIGH")
+            reasons = req.get("description") or req.get("reasons") or f"Action '{tool}' requires human approval"
+            args_raw = req.get("arguments_json") or str(req.get("arguments") or "{}")
 
-    for req in pending:
-        app_id = req.get("id")
-        tool = req.get("tool_name", "tool")
-        op = req.get("operation", "action")
-        risk = req.get("risk_level", "HIGH")
-        reasons = req.get("description") or req.get("reasons") or f"Action '{tool}' requires human approval"
-        args_raw = req.get("arguments_json") or str(req.get("arguments") or "{}")
-
-        with st.container():
-            st.markdown(
-                f"""
-                <div class="card-box">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h4 style="margin:0; color:#f8fafc;">Approval Request: <code>{tool} → {op}</code></h4>
-                        <span class="status-badge badge-ask">RISK: {risk}</span>
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div class="card-box">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4 style="margin:0; color:#f8fafc;">Approval Request: <code>{tool} → {op}</code></h4>
+                            <span class="status-badge badge-ask">RISK: {risk}</span>
+                        </div>
+                        <p style="margin-top:8px; color:#cbd5e1;"><b>Reason:</b> {reasons}</p>
+                        <p style="color:#94a3b8; font-size:12px;"><b>Approval ID:</b> <code>{app_id}</code> | <b>WhatsApp Alert:</b> <code>+91 83037 19864</code></p>
                     </div>
-                    <p style="margin-top:8px; color:#cbd5e1;"><b>Reason:</b> {reasons}</p>
-                    <p style="color:#94a3b8; font-size:12px;"><b>Approval ID:</b> <code>{app_id}</code> | <b>WhatsApp Alert:</b> <code>+91 83037 19864</code></p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-            col1, col2, col3 = st.columns([1, 1, 3])
-            with col1:
-                if st.button("✅ Approve Action", key=f"app_{app_id}", use_container_width=True, type="primary"):
-                    try:
-                        res = client._client.post(
-                            f"{client.api_prefix}/approvals/{app_id}/approve",
-                            json={"comment": "Approved via Streamlit Cloud Dashboard"},
-                            headers=client._headers(),
-                        )
-                        if res.status_code == 200:
-                            st.success(f"Action {app_id[:8]} approved on Railway cloud!")
-                        else:
-                            st.info(f"Action approved locally.")
-                        fetch_all_cloud_data.clear()
-                        time.sleep(0.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.warning(f"Error resolving: {e}")
-            with col2:
-                if st.button("❌ Deny Action", key=f"den_{app_id}", use_container_width=True):
-                    try:
-                        res = client._client.post(
-                            f"{client.api_prefix}/approvals/{app_id}/reject",
-                            json={"reason": "Denied via Streamlit Cloud Dashboard"},
-                            headers=client._headers(),
-                        )
-                        if res.status_code == 200:
-                            st.error(f"Action {app_id[:8]} denied on Railway cloud.")
-                        else:
-                            st.info("Action denied locally.")
-                        fetch_all_cloud_data.clear()
-                        time.sleep(0.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.warning(f"Error resolving: {e}")
-            with col3:
-                with st.expander("Inspect JSON Arguments"):
-                    st.code(args_raw, language="json")
+                col1, col2, col3 = st.columns([1, 1, 3])
+                with col1:
+                    if st.button("✅ Approve Action", key=f"app_{app_id}", use_container_width=True, type="primary"):
+                        try:
+                            res = client._client.post(
+                                f"{client.api_prefix}/approvals/{app_id}/approve",
+                                json={"comment": "Approved via Streamlit Cloud Dashboard"},
+                                headers=client._headers(),
+                            )
+                            if res.status_code == 200:
+                                st.success(f"Action {app_id[:8]} approved on Railway cloud!")
+                            else:
+                                st.info(f"Action approved locally.")
+                            fetch_all_cloud_data.clear()
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            st.warning(f"Error resolving: {e}")
+                with col2:
+                    if st.button("❌ Deny Action", key=f"den_{app_id}", use_container_width=True):
+                        try:
+                            res = client._client.post(
+                                f"{client.api_prefix}/approvals/{app_id}/reject",
+                                json={"reason": "Denied via Streamlit Cloud Dashboard"},
+                                headers=client._headers(),
+                            )
+                            if res.status_code == 200:
+                                st.error(f"Action {app_id[:8]} denied on Railway cloud.")
+                            else:
+                                st.info("Action denied locally.")
+                            fetch_all_cloud_data.clear()
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            st.warning(f"Error resolving: {e}")
+                with col3:
+                    with st.expander("Inspect JSON Arguments"):
+                        st.code(args_raw, language="json")
+
+    if resolved:
+        st.markdown("---")
+        with st.expander(f"📜 Resolved Approvals History ({len(resolved)})", expanded=False):
+            res_df = pd.DataFrame(
+                [
+                    {
+                        "ID": r.get("id", "")[:8] + "...",
+                        "Tool": r.get("tool_name", ""),
+                        "Operation": r.get("operation", ""),
+                        "Status": r.get("status", "").upper(),
+                        "Risk": r.get("risk_level", ""),
+                        "Description": r.get("description", ""),
+                        "Reviewed At": r.get("reviewed_at") or r.get("created_at", ""),
+                    }
+                    for r in resolved
+                ]
+            )
+            st.dataframe(res_df, use_container_width=True, hide_index=True)
 
 
 # VIEW 4: Live Activity & Executions

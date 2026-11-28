@@ -269,9 +269,12 @@ with st.sidebar:
     st.caption("Universal Runtime Security Gateway for AI Agents")
     st.markdown("---")
 
+    if "backend_url_key" not in st.session_state or "localhost" in st.session_state.get("backend_url_key", ""):
+        st.session_state["backend_url_key"] = DEPLOYED_BACKEND_URL
+
     backend_input = st.text_input(
         "Deployed Backend Cloud URL",
-        value=DEPLOYED_BACKEND_URL,
+        key="backend_url_key",
         help="Target live Railway cloud backend endpoint.",
     )
 
@@ -320,7 +323,7 @@ with st.sidebar:
             st.rerun()
     with col_btn2:
         if st.button("🌐 Reset URL", use_container_width=True):
-            backend_input = DEPLOYED_BACKEND_URL
+            st.session_state["backend_url_key"] = DEPLOYED_BACKEND_URL
             fetch_all_cloud_data.clear()
             st.rerun()
 

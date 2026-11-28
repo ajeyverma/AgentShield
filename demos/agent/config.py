@@ -39,13 +39,13 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 class DemoSettings(BaseModel):
     # Agent & Tenant Identity
-    agent_id: str = Field(default="demo-webpage-agent-001")
+    agent_id: str = Field(default="ba788968-c00e-4008-80c3-f3458297ad36")
     agent_name: str = Field(default="Subway Coders")
     tenant_id: str = Field(default="demo-tenant-001")
     agent_credential: str = Field(default="agsh_demo_secret_credential_token")
 
     # Backend Connection
-    backend_url: str = Field(default="http://localhost:8000")
+    backend_url: str = Field(default="https://agentshield-production-73d552af.up.railway.app")
     api_prefix: str = Field(default="/api/v1")
     use_in_process_engine: bool = Field(default=True, description="Use in-process AgentShield engine if backend HTTP is offline")
 
@@ -71,11 +71,23 @@ class DemoSettings(BaseModel):
         # Load from repo root .env as well as demo root .env
         load_dotenv(REPO_ROOT / ".env", override=False)
         load_dotenv(DEMO_ROOT / ".env", override=True)
+        raw_backend = os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app"
+        # If set to local but local server not running, fall back to deployed cloud backend
+        resolved_backend = raw_backend
+        if "localhost" in raw_backend or "127.0.0.1" in raw_backend:
+            try:
+                import httpx
+                r = httpx.get(f"{raw_backend.rstrip('/')}/api/v1/health", timeout=0.3)
+                if r.status_code != 200:
+                    resolved_backend = "https://agentshield-production-73d552af.up.railway.app"
+            except Exception:
+                resolved_backend = "https://agentshield-production-73d552af.up.railway.app"
+
         return cls(
-            agent_id=os.environ.get("AGENTSHIELD_AGENT_ID", "demo-webpage-agent-001"),
+            agent_id=os.environ.get("AGENTSHIELD_AGENT_ID", "ba788968-c00e-4008-80c3-f3458297ad36"),
             tenant_id=os.environ.get("AGENTSHIELD_TENANT_ID", "demo-tenant-001"),
             agent_credential=os.environ.get("AGENTSHIELD_AGENT_CREDENTIAL", "agsh_demo_secret_credential_token"),
-            backend_url=os.environ.get("AGENTSHIELD_BACKEND_URL", "http://localhost:8000"),
+            backend_url=resolved_backend,
             openai_api_key=os.environ.get("OPENAI_API_KEY"),
             model_name=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
             gemini_api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),

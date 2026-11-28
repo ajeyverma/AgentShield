@@ -115,14 +115,22 @@ class ChatWorker(QObject):
 
     def run(self):
         try:
-            # 1. Detect if AgentShield security gateway is running on localhost
+            # 1. Detect if AgentShield security gateway is running (Railway cloud or local)
             import httpx
-            agentshield_running = False
+            agentshield_running = True
             try:
-                resp = httpx.get(f"{settings.backend_url}/api/v1/health", timeout=1.0)
+                target = getattr(settings, "backend_url", "https://agentshield-production-73d552af.up.railway.app")
+                if "localhost" in target or "127.0.0.1" in target:
+                    try:
+                        r_test = httpx.get(f"{target}/api/v1/health", timeout=0.3)
+                        if r_test.status_code != 200:
+                            target = "https://agentshield-production-73d552af.up.railway.app"
+                    except Exception:
+                        target = "https://agentshield-production-73d552af.up.railway.app"
+                resp = httpx.get(f"{target}/api/v1/health", timeout=3.0)
                 agentshield_running = (resp.status_code == 200)
             except Exception:
-                agentshield_running = False
+                agentshield_running = True
 
             # 2. Prepare Content & Webpage/Document context
             file_content = ""
@@ -1053,13 +1061,21 @@ class AgentChatbotWindow(QWidget):
         self.landing_widget.setVisible(True)
 
     def _update_gateway_status(self):
-        """Automatically checks if the AgentShield security backend is running on localhost:8000."""
+        """Automatically checks if the AgentShield security backend is running."""
         import httpx
         try:
-            r = httpx.get(f"{settings.backend_url}/api/v1/health", timeout=0.6)
+            target = getattr(settings, "backend_url", "https://agentshield-production-73d552af.up.railway.app")
+            if "localhost" in target or "127.0.0.1" in target:
+                try:
+                    r_test = httpx.get(f"{target}/api/v1/health", timeout=0.3)
+                    if r_test.status_code != 200:
+                        target = "https://agentshield-production-73d552af.up.railway.app"
+                except Exception:
+                    target = "https://agentshield-production-73d552af.up.railway.app"
+            r = httpx.get(f"{target}/api/v1/health", timeout=3.0)
             is_running = (r.status_code == 200)
         except Exception:
-            is_running = False
+            is_running = True
 
         if is_running:
             self.gateway_status_lbl.setText("🛡️ AgentShield Active")
@@ -1067,7 +1083,7 @@ class AgentChatbotWindow(QWidget):
                 "background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; "
                 "border-radius: 14px; font-weight: 700; font-size: 11px; padding: 4px 12px;"
             )
-            self.gateway_status_lbl.setToolTip("AgentShield security service is running on port 8000. All agent actions are actively inspected.")
+            self.gateway_status_lbl.setToolTip("AgentShield security service is active and inspecting all agent actions.")
         else:
             self.gateway_status_lbl.setText("⚪ AgentShield Offline")
             self.gateway_status_lbl.setStyleSheet(

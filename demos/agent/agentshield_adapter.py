@@ -84,6 +84,24 @@ def get_approval_db_path() -> Path:
     return Path("agentshield_dev.db").resolve()
 
 
+DEFAULT_LIVE_BACKEND_URL = "https://agentshield-production-73d552af.up.railway.app"
+
+
+def resolve_target_backend(candidate: str | None = None) -> str:
+    """Resolve backend URL, automatically falling back to live Railway cloud backend."""
+    url = (candidate or os.environ.get("AGENTSHIELD_BACKEND_URL") or DEFAULT_LIVE_BACKEND_URL).rstrip("/")
+    if "localhost" in url or "127.0.0.1" in url:
+        try:
+            import httpx
+            r = httpx.get(f"{url}/api/v1/health", timeout=0.25)
+            if r.status_code == 200:
+                return url
+        except Exception:
+            pass
+        return DEFAULT_LIVE_BACKEND_URL
+    return url
+
+
 _CLOUD_AUTH_CACHE: dict[str, Any] = {"token": None, "expires_at": 0}
 
 
@@ -93,20 +111,20 @@ def get_cloud_auth_token(backend_url: str | None = None) -> str | None:
     now = time.time()
     if _CLOUD_AUTH_CACHE.get("token") and _CLOUD_AUTH_CACHE.get("expires_at", 0) > now:
         return _CLOUD_AUTH_CACHE["token"]
-    target_backend = (backend_url or os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app").rstrip("/")
+    target_backend = resolve_target_backend(backend_url)
     try:
         import httpx
         resp = httpx.post(
             f"{target_backend}/api/v1/auth/login",
             json={"username_or_email": "admin", "password": "Admin12345!"},
-            timeout=2.0,
+            timeout=3.0,
         )
         if resp.status_code == 200:
             tok = resp.json().get("access_token")
             _CLOUD_AUTH_CACHE = {"token": tok, "expires_at": now + 1800}
             return tok
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed cloud auth login: %s", exc)
     return None
 
 
@@ -120,24 +138,30 @@ def sync_cloud_approval(
     risk_level: str = "HIGH",
 ) -> str | None:
     """Publish approval request to the live cloud backend so Streamlit dashboard reflects it instantly."""
-    token = get_cloud_auth_token(backend_url)
+    target_backend = resolve_target_backend(backend_url)
+    token = get_cloud_auth_token(target_backend)
     if not token:
         return None
     try:
         import httpx
-        clean_url = backend_url.rstrip("/")
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        # Map agent_id to registered cloud agent if default or mismatched
+        effective_agent_id = agent_id
+        if not effective_agent_id or effective_agent_id in ("demo-webpage-agent-001", "dd7bcc65-1df6-486a-b0a9-9939c11f97ff"):
+            effective_agent_id = "ba788968-c00e-4008-80c3-f3458297ad36"
         payload = {
-            "agent_id": agent_id,
+            "agent_id": effective_agent_id,
             "request_id": request_id,
             "tool_name": tool_name,
             "operation": operation,
             "risk_level": risk_level,
             "description": description,
         }
-        res = httpx.post(f"{clean_url}/api/v1/approvals", headers=headers, json=payload, timeout=3.0)
+        res = httpx.post(f"{target_backend}/api/v1/approvals", headers=headers, json=payload, timeout=3.5)
         if res.status_code in (200, 201):
-            return res.json().get("id")
+            cloud_id = res.json().get("id")
+            logger.info("Successfully synced approval to cloud backend: %s", cloud_id)
+            return cloud_id
     except Exception as exc:
         logger.debug("Failed to sync approval to cloud backend: %s", exc)
     return None
@@ -155,15 +179,18 @@ def sync_cloud_activity(
     arguments_summary: str | None = None,
 ) -> None:
     """Publish activity event to the live cloud backend."""
-    token = get_cloud_auth_token(backend_url)
+    target_backend = resolve_target_backend(backend_url)
+    token = get_cloud_auth_token(target_backend)
     if not token:
         return
     try:
         import httpx
-        clean_url = backend_url.rstrip("/")
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        effective_agent_id = agent_id
+        if not effective_agent_id or effective_agent_id in ("demo-webpage-agent-001", "dd7bcc65-1df6-486a-b0a9-9939c11f97ff"):
+            effective_agent_id = "ba788968-c00e-4008-80c3-f3458297ad36"
         payload = {
-            "agent_id": agent_id,
+            "agent_id": effective_agent_id,
             "request_id": request_id,
             "tool_name": tool_name,
             "operation": operation,
@@ -172,7 +199,7 @@ def sync_cloud_activity(
             "execution_status": execution_status,
             "arguments_summary": arguments_summary,
         }
-        httpx.post(f"{clean_url}/api/v1/activity", headers=headers, json=payload, timeout=2.0)
+        httpx.post(f"{target_backend}/api/v1/activity", headers=headers, json=payload, timeout=3.0)
     except Exception as exc:
         logger.debug("Failed to sync activity to cloud backend: %s", exc)
 
@@ -180,13 +207,13 @@ def sync_cloud_activity(
 def check_approval_status(approval_id: str, backend_url: str | None = None) -> dict[str, Any]:
     """Check approval status both on the live Railway cloud backend and locally."""
     # 1. Check live remote cloud backend first
-    target_backend = (backend_url or os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app").rstrip("/")
+    target_backend = resolve_target_backend(backend_url)
     token = get_cloud_auth_token(target_backend)
     if token:
         try:
             import httpx
             headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-            r = httpx.get(f"{target_backend}/api/v1/approvals/{approval_id}", headers=headers, timeout=2.0)
+            r = httpx.get(f"{target_backend}/api/v1/approvals/{approval_id}", headers=headers, timeout=2.5)
             if r.status_code == 200:
                 data = r.json()
                 cloud_status = data.get("status", "pending").lower()
@@ -285,7 +312,7 @@ def resolve_approval_record(approval_id: str, decision: str, comment: str = "", 
             pass
 
     # 2. Synchronize resolution to Railway cloud backend
-    target_backend = (backend_url or os.environ.get("AGENTSHIELD_BACKEND_URL") or "https://agentshield-production-73d552af.up.railway.app").rstrip("/")
+    target_backend = resolve_target_backend(backend_url)
     token = get_cloud_auth_token(target_backend)
     if token:
         try:
@@ -293,7 +320,7 @@ def resolve_approval_record(approval_id: str, decision: str, comment: str = "", 
             headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
             action_route = "approve" if decision.lower() in ("approve", "approved") else "reject"
             body = {"comment": comment or "Decided in Chat"} if action_route == "approve" else {"reason": comment or "Rejected in Chat"}
-            httpx.post(f"{target_backend}/api/v1/approvals/{approval_id}/{action_route}", headers=headers, json=body, timeout=2.5)
+            httpx.post(f"{target_backend}/api/v1/approvals/{approval_id}/{action_route}", headers=headers, json=body, timeout=3.0)
         except Exception:
             pass
 
@@ -316,6 +343,8 @@ class AgentShieldAdapter:
     ) -> None:
         self.use_live_backend = use_live_backend
         self.agent_id = agent_id or settings.agent_id
+        if not self.agent_id or self.agent_id in ("demo-webpage-agent-001", "dd7bcc65-1df6-486a-b0a9-9939c11f97ff"):
+            self.agent_id = "ba788968-c00e-4008-80c3-f3458297ad36"
         self.tenant_id = tenant_id or settings.tenant_id
         self.agent_credential = settings.agent_credential
         try:
@@ -326,7 +355,7 @@ class AgentShieldAdapter:
             self.tenant_uuid = uuid.UUID(self.tenant_id)
         except Exception:
             self.tenant_uuid = DEMO_TENANT_UUID
-        self.backend_url = backend_url or settings.backend_url
+        self.backend_url = resolve_target_backend(backend_url or settings.backend_url)
         self.active_provenance: ProvenanceContext | None = None
         self.cached_webpage_threats: ThreatAnalysisResult | None = None
 

@@ -37,8 +37,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; Standalone compiled distribution files
 Source: "..\..\dist\SubwayCodersAgent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Bundled pre-configured environment file (connected to Railway cloud)
-Source: "..\..\dist\SubwayCodersAgent\.env"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+; Bundled pre-configured environment file (with AI keys and Railway cloud backend)
+Source: "..\..\dist\SubwayCodersAgent\.env"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\dist\SubwayCodersAgent\.env"; DestDir: "{app}"; DestName: ".env.default"; Flags: ignoreversion
 Source: "..\..\demos\agent\subway_coders.ico"; DestDir: "{app}"; Flags: ignoreversion
 

@@ -16,9 +16,14 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 2. Copy .env and assets to dist folder
-Write-Host "`n[2/3] Bundling .env and icons..." -ForegroundColor Yellow
-Copy-Item ".env" "dist\SubwayCodersAgent\.env" -Force
+# 2. Copy .env with all AI API keys and assets to dist folder
+Write-Host "`n[2/3] Bundling .env with all AI API keys and icons..." -ForegroundColor Yellow
+if (Test-Path "demos\agent\.env") {
+    Copy-Item "demos\agent\.env" "dist\SubwayCodersAgent\.env" -Force
+    if (Test-Path "dist\SubwayCodersAgent\demos\agent") {
+        Copy-Item "demos\agent\.env" "dist\SubwayCodersAgent\demos\agent\.env" -Force
+    }
+}
 Copy-Item "demos\agent\subway_coders.ico" "dist\SubwayCodersAgent\subway_coders.ico" -Force
 
 # 3. Compile Inno Setup Installer

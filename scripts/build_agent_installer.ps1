@@ -36,4 +36,4 @@ if (Test-Path $InnoSetupCompiler) {
     exit 1
 }
 
-Write-Host "`nDone! Installer: dist\installer\SubwayCodersAgent-Setup-v0.1.0.exe" -ForegroundColor Cyan
+Write-Host "`nDone! Installer: dist/installer/SubwayCodersAgent-Setup-v0.1.0.exe" -ForegroundColor Cyan

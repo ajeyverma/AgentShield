@@ -129,6 +129,29 @@ class DashboardApiClient:
         self.register("admin@agentshield.io", "admin", "Admin12345!")
         return self.login("admin", "Admin12345!")
 
+    def request(self, method: str, endpoint: str, **kwargs) -> httpx.Response:
+        """Make an authenticated request, automatically handling token renewal if 401."""
+        self.ensure_authenticated()
+        headers = self._headers()
+        if "headers" in kwargs:
+            headers.update(kwargs.pop("headers"))
+
+        path = f"{self.api_prefix}/{endpoint.lstrip('/')}"
+        resp = self._client.request(method, path, headers=headers, **kwargs)
+        if resp.status_code == 401:
+            # Token expired or invalid — force re-authentication and retry once
+            self.token = None
+            if self.ensure_authenticated():
+                headers = self._headers()
+                resp = self._client.request(method, path, headers=headers, **kwargs)
+        return resp
+
+    def get(self, endpoint: str, **kwargs) -> httpx.Response:
+        return self.request("GET", endpoint, **kwargs)
+
+    def post(self, endpoint: str, **kwargs) -> httpx.Response:
+        return self.request("POST", endpoint, **kwargs)
+
     def check_health(self) -> dict[str, Any] | None:
         try:
             resp = self._client.get(f"{self.api_prefix}/health")
@@ -213,14 +236,14 @@ def fetch_all_cloud_data(url: str) -> dict[str, Any]:
 
     def _fetch_metrics():
         try:
-            r = client._client.get(f"{client.api_prefix}/metrics/summary", headers=headers)
+            r = client.get("metrics/summary")
             return "metrics", r.json() if r.status_code == 200 else {}
         except Exception:
             return "metrics", {}
 
     def _fetch_agents():
         try:
-            r = client._client.get(f"{client.api_prefix}/agents", headers=headers)
+            r = client.get("agents")
             if r.status_code == 200:
                 data = r.json()
                 return "agents", data.get("items", data) if isinstance(data, dict) else data
@@ -230,7 +253,7 @@ def fetch_all_cloud_data(url: str) -> dict[str, Any]:
 
     def _fetch_approvals():
         try:
-            r = client._client.get(f"{client.api_prefix}/approvals?size=50", headers=headers)
+            r = client.get("approvals?size=50")
             if r.status_code == 200:
                 data = r.json()
                 return "approvals", data.get("items", data) if isinstance(data, dict) else data
@@ -240,7 +263,7 @@ def fetch_all_cloud_data(url: str) -> dict[str, Any]:
 
     def _fetch_activity():
         try:
-            r = client._client.get(f"{client.api_prefix}/activity?size=50", headers=headers)
+            r = client.get("activity?size=50")
             if r.status_code == 200:
                 data = r.json()
                 return "activity", data.get("items", data) if isinstance(data, dict) else data
@@ -343,13 +366,13 @@ if view == "Overview & Metrics":
     st.header("Security Operations Center — Overview")
     st.caption(f"Connected to Railway: `{backend_input}` (Fetched in {latency}ms)")
 
-    total_reqs = counters.get("security.requests.total") or len(activities_list) or 12
-    total_threats = (counters.get("security.threats.critical", 0) + counters.get("security.threats.high", 0)) or 4
-    pending_approvals = len([a for a in approvals_list if a.get("status") in ("pending", "PENDING_APPROVAL")])
+    total_reqs = counters.get("security.requests.total") or len(activities_list)
+    total_threats = (counters.get("security.threats.critical", 0) + counters.get("security.threats.high", 0))
+    pending_approvals = len([a for a in approvals_list if str(a.get("status", "")).lower() in ("pending", "pending_approval")])
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("Protected Agents", len(agents_list) or 1)
+        st.metric("Protected Agents", len(agents_list))
     with c2:
         st.metric("Total Tool Interceptions", total_reqs)
     with c3:
@@ -364,10 +387,18 @@ if view == "Overview & Metrics":
     with col_left:
         st.subheader("Interception Decision Breakdown")
         decisions_data = {
-            "ALLOW": counters.get("security.decisions.ALLOW", 8) or 8,
-            "BLOCK": counters.get("security.decisions.BLOCK", 3) or 3,
-            "ASK_HUMAN": counters.get("security.decisions.ASK_HUMAN", 1) or 1,
+            "ALLOW": counters.get("security.decisions.ALLOW", 0),
+            "BLOCK": counters.get("security.decisions.BLOCK", 0),
+            "ASK_HUMAN": counters.get("security.decisions.ASK_HUMAN", 0),
         }
+        # If no counters yet, tally directly from activities_list
+        if sum(decisions_data.values()) == 0 and activities_list:
+            for act in activities_list:
+                d = str(act.get("decision", "ALLOW")).upper()
+                decisions_data[d] = decisions_data.get(d, 0) + 1
+        if sum(decisions_data.values()) == 0:
+            decisions_data = {"ALLOW": 1, "BLOCK": 0, "ASK_HUMAN": 0}
+
         df_dec = pd.DataFrame(list(decisions_data.items()), columns=["Decision", "Count"])
         fig_pie = px.pie(
             df_dec,
@@ -382,7 +413,20 @@ if view == "Overview & Metrics":
 
     with col_right:
         st.subheader("Threat Severity Distribution")
-        threat_severities = {"CRITICAL": 2, "HIGH": 3, "MEDIUM": 1, "LOW": 0}
+        threat_severities = {
+            "CRITICAL": counters.get("security.threats.critical", 0),
+            "HIGH": counters.get("security.threats.high", 0),
+            "MEDIUM": counters.get("security.threats.medium", 0),
+            "LOW": counters.get("security.threats.low", 0),
+        }
+        if sum(threat_severities.values()) == 0 and activities_list:
+            for act in activities_list:
+                rl = str(act.get("risk_level", "LOW")).upper()
+                if rl in threat_severities:
+                    threat_severities[rl] += 1
+        if sum(threat_severities.values()) == 0:
+            threat_severities = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 1}
+
         df_sev = pd.DataFrame(list(threat_severities.items()), columns=["Severity", "Count"])
         fig_bar = px.bar(
             df_sev,
@@ -395,12 +439,21 @@ if view == "Overview & Metrics":
         st.plotly_chart(fig_bar, use_container_width=True)
 
     st.subheader("Recent Security Interceptions")
-    sample_feed = [
-        {"Timestamp": "Just now", "Agent": "Subway Coders", "Tool": "file_system:read_file", "Decision": "ASK_HUMAN", "Risk": "HIGH", "Target": "data/dummy_secret.txt"},
-        {"Timestamp": "4 mins ago", "Agent": "Subway Coders", "Tool": "web_browser:fetch_page", "Decision": "ALLOW", "Risk": "LOW", "Target": "https://example.com/blog"},
-        {"Timestamp": "8 mins ago", "Agent": "Subway Coders", "Tool": "email:send_message", "Decision": "BLOCK", "Risk": "CRITICAL", "Target": "attacker@exfil.org"},
-    ]
-    st.dataframe(pd.DataFrame(sample_feed), use_container_width=True, hide_index=True)
+    if activities_list:
+        feed_rows = []
+        for act in activities_list[:8]:
+            feed_rows.append({
+                "Timestamp": act.get("timestamp") or act.get("created_at") or "Recent",
+                "Agent": act.get("agent_name") or "Subway Coders",
+                "Tool": act.get("tool_name", "tool"),
+                "Operation": act.get("operation", "-"),
+                "Decision": act.get("decision", "ALLOW"),
+                "Risk": act.get("risk_level", "LOW"),
+                "Target / Details": str(act.get("arguments") or act.get("metadata") or "-")[:60],
+            })
+        st.dataframe(pd.DataFrame(feed_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No security interceptions recorded yet in Railway cloud database.")
 
 
 # VIEW 2: Agent Manager
@@ -414,10 +467,9 @@ elif view == "Agent Manager":
         new_desc = st.text_area("Description", value="Autonomous Coding and System Agent")
         if st.button("Create Agent in Cloud", type="primary"):
             try:
-                res = client._client.post(
-                    f"{client.api_prefix}/agents",
+                res = client.post(
+                    "agents",
                     json={"agent_name": new_name, "framework": new_fw, "description": new_desc},
-                    headers=client._headers(),
                 )
                 if res.status_code == 201:
                     data_res = res.json()
@@ -494,10 +546,9 @@ elif view == "Approval Center (Human-in-the-Loop)":
                 with col1:
                     if st.button("✅ Approve Action", key=f"app_{app_id}", use_container_width=True, type="primary"):
                         try:
-                            res = client._client.post(
-                                f"{client.api_prefix}/approvals/{app_id}/approve",
+                            res = client.post(
+                                f"approvals/{app_id}/approve",
                                 json={"comment": "Approved via Streamlit Cloud Dashboard"},
-                                headers=client._headers(),
                             )
                             if res.status_code == 200:
                                 st.success(f"Action {app_id[:8]} approved on Railway cloud!")
@@ -511,10 +562,9 @@ elif view == "Approval Center (Human-in-the-Loop)":
                 with col2:
                     if st.button("❌ Deny Action", key=f"den_{app_id}", use_container_width=True):
                         try:
-                            res = client._client.post(
-                                f"{client.api_prefix}/approvals/{app_id}/reject",
+                            res = client.post(
+                                f"approvals/{app_id}/reject",
                                 json={"reason": "Denied via Streamlit Cloud Dashboard"},
-                                headers=client._headers(),
                             )
                             if res.status_code == 200:
                                 st.error(f"Action {app_id[:8]} denied on Railway cloud.")
@@ -555,19 +605,21 @@ elif view == "Live Activity & Executions":
     st.caption("Audit trail of all actions intercepted and evaluated by AgentShield")
 
     if activities_list:
-        st.dataframe(pd.DataFrame(activities_list), use_container_width=True)
+        clean_acts = []
+        for act in activities_list:
+            clean_acts.append({
+                "Timestamp": act.get("timestamp") or act.get("created_at") or "-",
+                "Agent": act.get("agent_name") or "Subway Coders",
+                "Tool": act.get("tool_name", "-"),
+                "Operation": act.get("operation", "-"),
+                "Decision": act.get("decision", "-"),
+                "Risk": act.get("risk_level", "LOW"),
+                "Status": act.get("execution_status", act.get("status", "SUCCESS")),
+                "Details": str(act.get("arguments") or act.get("error_message") or "-")[:80],
+            })
+        st.dataframe(pd.DataFrame(clean_acts), use_container_width=True, hide_index=True)
     else:
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {"ID": "exec-101", "Time": "11:41:48", "Agent": "Subway Coders", "Tool": "file_system", "Action": "read_file", "Decision": "ASK_HUMAN", "Risk": "HIGH"},
-                    {"ID": "exec-102", "Time": "11:39:10", "Agent": "Subway Coders", "Tool": "web_browser", "Action": "fetch_page", "Decision": "ALLOW", "Risk": "LOW"},
-                    {"ID": "exec-103", "Time": "11:35:22", "Agent": "Subway Coders", "Tool": "system_command", "Action": "execute", "Decision": "BLOCK", "Risk": "CRITICAL"},
-                ]
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.info("No live activity records in Railway cloud database.")
 
 
 # VIEW 5: Threat Detection Center

@@ -10,13 +10,26 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-DEMO_ROOT = Path(__file__).resolve().parent
-REPO_ROOT = DEMO_ROOT.parents[1]
+if getattr(sys, "frozen", False):
+    EXE_DIR = Path(sys.executable).parent
+    DEMO_ROOT = EXE_DIR if (EXE_DIR / "data").exists() else (EXE_DIR / "demos" / "agent")
+    REPO_ROOT = EXE_DIR
+else:
+    DEMO_ROOT = Path(__file__).resolve().parent
+    REPO_ROOT = DEMO_ROOT.parents[1]
+
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+if str(DEMO_ROOT) not in sys.path:
+    sys.path.insert(0, str(DEMO_ROOT))
 
 # Load .env file with demo agent credentials
-load_dotenv(DEMO_ROOT / ".env", override=True)
+if getattr(sys, "frozen", False):
+    for candidate in [REPO_ROOT / ".env", DEMO_ROOT / ".env"]:
+        if candidate.exists():
+            load_dotenv(candidate, override=True)
+else:
+    load_dotenv(DEMO_ROOT / ".env", override=True)
 
 DATA_DIR = DEMO_ROOT / "data"
 RESULTS_DIR = DEMO_ROOT / "results"

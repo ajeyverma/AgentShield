@@ -39,8 +39,15 @@ from PySide6.QtWidgets import (
 )
 
 # Workspace & local imports
-CURRENT_DIR = Path(__file__).resolve().parent
-ROOT_DIR = Path(__file__).resolve().parents[2]
+if getattr(sys, "frozen", False):
+    CURRENT_DIR = Path(sys.executable).parent
+    if not (CURRENT_DIR / "subway_coders_circle.png").exists() and hasattr(sys, "_MEIPASS"):
+        CURRENT_DIR = Path(sys._MEIPASS) / "demos" / "agent"
+    ROOT_DIR = Path(sys.executable).parent
+else:
+    CURRENT_DIR = Path(__file__).resolve().parent
+    ROOT_DIR = Path(__file__).resolve().parents[2]
+
 for p in (CURRENT_DIR, ROOT_DIR):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))

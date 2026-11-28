@@ -69,6 +69,12 @@ class AdapterExecutionResult:
 
 def get_approval_db_path() -> Path:
     """Locate the AgentShield SQLite database."""
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        p = exe_dir / "agentshield_dev.db"
+        if p.exists():
+            return p
+        return (exe_dir / "data" / "agentshield_dev.db").resolve()
     p1 = Path(__file__).resolve().parents[2] / "agentshield_dev.db"
     if p1.exists():
         return p1

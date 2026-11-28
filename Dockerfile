@@ -64,10 +64,10 @@ RUN mkdir -p /app/data /app/logs && \
 
 USER agentshield
 
-EXPOSE 8000
+EXPOSE 8080 8000
 
 # Healthcheck hitting versioned health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://127.0.0.1:${PORT:-8000}/api/v1/health || exit 1
+    CMD curl -f http://127.0.0.1:${PORT:-8080}/api/v1/health || curl -f http://127.0.0.1:8000/api/v1/health || exit 1
 
 CMD ["python", "scripts/start_server.py"]

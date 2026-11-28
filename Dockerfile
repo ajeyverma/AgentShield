@@ -54,6 +54,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY agentshield ./agentshield
 COPY apps ./apps
 COPY demos ./demos
+COPY scripts ./scripts
 COPY alembic ./alembic
 COPY alembic.ini pyproject.toml ./
 
@@ -69,4 +70,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-CMD ["sh", "-c", "uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --log-level info"]
+CMD ["python", "scripts/start_server.py"]

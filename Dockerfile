@@ -23,7 +23,7 @@ COPY agentshield ./agentshield
 COPY apps ./apps
 
 RUN pip install --upgrade pip && \
-    pip install .[api]
+    pip install greenlet .[api]
 
 # Stage 2: Minimal Runtime Environment
 FROM python:3.11-slim AS runner

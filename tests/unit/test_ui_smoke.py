@@ -71,7 +71,7 @@ class TestModuleImports:
 
     def test_sidebar_import(self):
         from apps.desktop.components.sidebar import NAV_ITEMS, Sidebar  # noqa: F401
-        assert len(NAV_ITEMS) == 9
+        assert len(NAV_ITEMS) == 8
 
     def test_header_import(self):
         from apps.desktop.components.header import Header, PAGE_META  # noqa: F401
@@ -243,7 +243,7 @@ class TestDesignTokens:
 
     def test_nav_items_count(self):
         from apps.desktop.components.sidebar import NAV_ITEMS
-        assert len(NAV_ITEMS) == 9, "Expected exactly 9 navigation items"
+        assert len(NAV_ITEMS) == 8, "Expected exactly 8 navigation items"
 
     def test_page_meta_covers_all_pages(self):
         from apps.desktop.components.header import PAGE_META

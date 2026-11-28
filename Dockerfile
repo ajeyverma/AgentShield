@@ -23,7 +23,7 @@ COPY agentshield ./agentshield
 COPY apps ./apps
 
 RUN pip install --upgrade pip && \
-    pip install greenlet .[api]
+    pip install greenlet email-validator python-multipart .[api]
 
 # Stage 2: Minimal Runtime Environment
 FROM python:3.11-slim AS runner

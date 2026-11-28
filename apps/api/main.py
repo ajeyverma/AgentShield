@@ -108,6 +108,23 @@ def create_app() -> FastAPI:
     )
 
     # ------------------------------------------------------------------
+    # Root & Direct Health Check Endpoints
+    # ------------------------------------------------------------------
+    @app.get("/", tags=["Root"])
+    async def root():
+        return {
+            "status": "online",
+            "message": "AgentShield AI Cloud Gateway is running.",
+            "version": settings.app_version,
+            "docs": f"{settings.api_prefix}/docs",
+            "health": f"{settings.api_prefix}/health",
+        }
+
+    @app.get("/health", tags=["Health"])
+    async def quick_health():
+        return {"status": "healthy", "service": settings.app_name, "version": settings.app_version}
+
+    # ------------------------------------------------------------------
     # Routers
     # ------------------------------------------------------------------
     app.include_router(health.router, prefix=settings.api_prefix)
